@@ -340,6 +340,21 @@ async def get_attempt_responses(attempt_id: str, current_user: dict = Depends(ge
 # Leaderboard endpoint
 @router.get("/leaderboard/{eval_id}")
 async def get_leaderboard(eval_id: int, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    # Get evaluation to get max marks
+    eval_result = await db.execute(select(Evaluation).where(Evaluation.eval_id == eval_id))
+    evaluation = eval_result.scalar_one_or_none()
+    if not evaluation:
+        raise HTTPException(status_code=404, detail="Evaluation not found")
+    
+    # Calculate max marks
+    max_marks_result = await db.execute(
+        select(func.sum(Question.marks)).where(
+            Question.eval_id == eval_id,
+            Question.is_active == True
+        )
+    )
+    max_marks = float(max_marks_result.scalar() or 0)
+    
     result = await db.execute(
         select(
             EvaluationAttempt.candidate_id,
@@ -363,10 +378,16 @@ async def get_leaderboard(eval_id: int, current_user: dict = Depends(get_current
         time_taken = None
         if row[2] and row[3]:
             time_taken = int((row[3] - row[2]).total_seconds())
+        
+        total_score = float(row[1]) if row[1] is not None else 0
+        percentage = (total_score / max_marks * 100) if max_marks > 0 else 0
+        
         leaderboard.append({
             "rank": rank,
             "candidate_id": str(row[0]),
-            "total_score": float(row[1]) if row[1] is not None else 0,
+            "total_score": total_score,
+            "max_marks": max_marks,
+            "percentage": round(percentage, 2),
             "started_at": row[2].isoformat() if row[2] else None,
             "submitted_at": row[3].isoformat() if row[3] else None,
             "time_taken_seconds": time_taken,

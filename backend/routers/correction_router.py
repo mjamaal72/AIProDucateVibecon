@@ -237,18 +237,45 @@ async def grade_response(response_id: int, req: ManualGradeRequest, current_user
     resp.corrected_at = datetime.now(timezone.utc)
     await db.commit()
     
-    # Recalculate attempt total
+    # Recalculate attempt total and pass/fail status
     att_result = await db.execute(
         select(AttemptResponse).where(AttemptResponse.attempt_id == resp.attempt_id)
     )
     all_responses = att_result.scalars().all()
     total = sum(float(r.auto_graded_marks or 0) + float(r.manual_marks or 0) for r in all_responses)
-    await db.execute(
-        update(EvaluationAttempt).where(EvaluationAttempt.attempt_id == resp.attempt_id).values(total_score=total)
+    
+    # Get attempt and evaluation to check passing percentage
+    attempt_result = await db.execute(
+        select(EvaluationAttempt).where(EvaluationAttempt.attempt_id == resp.attempt_id)
     )
+    attempt = attempt_result.scalar_one()
+    
+    eval_result = await db.execute(
+        select(Evaluation).where(Evaluation.eval_id == attempt.eval_id)
+    )
+    evaluation = eval_result.scalar_one()
+    
+    # Recalculate is_passed
+    is_passed = None
+    if evaluation.passing_percentage:
+        max_marks_result = await db.execute(
+            select(func.sum(Question.marks)).where(
+                Question.eval_id == evaluation.eval_id, 
+                Question.is_active == True
+            )
+        )
+        max_marks = float(max_marks_result.scalar() or 0)
+        if max_marks > 0:
+            percentage = (total / max_marks) * 100
+            is_passed = percentage >= float(evaluation.passing_percentage)
+    
+    # Update attempt with new total and pass status
+    attempt.total_score = total
+    if is_passed is not None:
+        attempt.is_passed = is_passed
     await db.commit()
     
-    return {"message": "Marks saved", "manual_marks": req.manual_marks, "new_total": total}
+    return {"message": "Marks saved", "manual_marks": req.manual_marks, "new_total": total, "is_passed": is_passed}
 
 
 # --- Workload Transfer ---

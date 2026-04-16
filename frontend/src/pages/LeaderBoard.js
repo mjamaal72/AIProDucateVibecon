@@ -111,7 +111,8 @@ export default function LeaderBoard() {
                             <Medal size={24} />
                           </div>
                           <p className="font-semibold text-sm">{entry.full_name}</p>
-                          <p className="text-2xl font-bold mt-1" style={{ color: 'hsl(210, 52%, 25%)' }}>{entry.total_score}</p>
+                          <p className="text-2xl font-bold mt-1" style={{ color: 'hsl(210, 52%, 25%)' }}>{entry.total_score}/{entry.max_marks}</p>
+                          <p className="text-sm font-medium text-muted-foreground">{entry.percentage}%</p>
                           <p className="text-xs text-muted-foreground">{formatDuration(entry.time_taken_seconds)}</p>
                           {entry.is_passed !== null && (
                             <Badge className={`mt-2 text-xs ${entry.is_passed ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
@@ -137,7 +138,10 @@ export default function LeaderBoard() {
                       <p className="text-xs text-muted-foreground">{entry.unique_identifier}</p>
                     </div>
                     <div className="flex items-center gap-6">
-                      <div className="text-right"><p className="text-xl font-bold" style={{ color: 'hsl(210, 52%, 25%)' }}>{entry.total_score}</p><p className="text-xs text-muted-foreground">Score</p></div>
+                      <div className="text-right">
+                        <p className="text-xl font-bold" style={{ color: 'hsl(210, 52%, 25%)' }}>{entry.total_score}/{entry.max_marks}</p>
+                        <p className="text-xs text-muted-foreground">{entry.percentage}% Score</p>
+                      </div>
                       <div className="text-right"><div className="flex items-center gap-1 text-sm text-muted-foreground"><Clock size={14} />{formatDuration(entry.time_taken_seconds)}</div></div>
                       {entry.is_passed !== null && <Badge className={entry.is_passed ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>{entry.is_passed ? 'Passed' : 'Failed'}</Badge>}
                     </div>
