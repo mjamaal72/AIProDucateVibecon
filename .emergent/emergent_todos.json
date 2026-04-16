@@ -1,38 +1,22 @@
 [
   {
-    "content": "Phase 1: POC - Supabase PostgreSQL connection via async SQLAlchemy",
+    "content": "Phase 1: All POC tests passed (PostgreSQL, Storage, Gemini, Grading, Timer)",
     "status": "completed"
   },
   {
-    "content": "Phase 1: POC - File storage (Emergent Object Storage)",
+    "content": "Phase 2: Backend - Auth, Evaluations, Questions, AI, Attempts, Uploads",
     "status": "completed"
   },
   {
-    "content": "Phase 1: POC - Google Gemini AI question generation",
+    "content": "Phase 2: Frontend - Login, Dashboard, Eval Management, Question Bank, Student Portal, Live Exam, Leaderboard",
     "status": "completed"
-  },
-  {
-    "content": "Phase 1: POC - Auto-grading engine for all objective question types",
-    "status": "completed"
-  },
-  {
-    "content": "Phase 1: POC - Server-side time validation",
-    "status": "completed"
-  },
-  {
-    "content": "Phase 1: All POC tests passed",
-    "status": "completed"
-  },
-  {
-    "content": "Phase 2: Design agent + Full app backend development",
-    "status": "in_progress"
-  },
-  {
-    "content": "Phase 2: Full app frontend development",
-    "status": "pending"
   },
   {
     "content": "Phase 2: End-to-end testing with testing agent",
+    "status": "in_progress"
+  },
+  {
+    "content": "Phase 2: All user stories covered in Development and testing",
     "status": "pending"
   },
   {

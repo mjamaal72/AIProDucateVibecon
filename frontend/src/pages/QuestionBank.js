@@ -1,0 +1,458 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@/lib/auth';
+import { useSearchParams } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from 'sonner';
+import { Plus, Trash2, FolderOpen, Sparkles, Save, X, GripVertical, ChevronDown, ChevronUp } from 'lucide-react';
+
+const QUESTION_TYPES = [
+  { value: 'SINGLE_SELECT', label: 'Single Select', icon: '1' },
+  { value: 'MULTIPLE_SELECT', label: 'Multiple Select', icon: 'M' },
+  { value: 'FILL_BLANK', label: 'Fill In The Blank', icon: 'F' },
+  { value: 'MATCHING', label: 'Match The Following', icon: '=' },
+  { value: 'SEQUENCING', label: 'Sequencing', icon: '#' },
+  { value: 'TOGGLE_BINARY', label: 'Toggle (Binary)', icon: 'T' },
+  { value: 'SUBJECTIVE_TYPING', label: 'Subjective Typing', icon: 'S' },
+  { value: 'FILE_UPLOAD', label: 'File Upload', icon: 'U' },
+  { value: 'AUDIO_RECORDING', label: 'Audio Recording', icon: 'A' },
+];
+
+const PENALTY_TYPES = [
+  { value: 'NONE', label: 'None (All or Nothing)' },
+  { value: 'A', label: 'Toggle A (Sniper - Any wrong = 0)' },
+  { value: 'B', label: 'Toggle B (Offset - Correct minus Incorrect)' },
+  { value: 'C', label: 'Toggle C (Pure Partial - Wrong = 0, no penalty)' },
+];
+
+export default function QuestionBank() {
+  const { api } = useAuth();
+  const [searchParams] = useSearchParams();
+  const [evaluations, setEvaluations] = useState([]);
+  const [selectedEval, setSelectedEval] = useState(searchParams.get('eval') || '');
+  const [sections, setSections] = useState([]);
+  const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showSectionModal, setShowSectionModal] = useState(false);
+  const [showQuestionModal, setShowQuestionModal] = useState(false);
+  const [showAIModal, setShowAIModal] = useState(false);
+  const [sectionForm, setSectionForm] = useState({ section_name: '', target_question_count: 0, target_total_marks: 0, instructions: '' });
+  const [editSection, setEditSection] = useState(null);
+  const [questionForm, setQuestionForm] = useState({
+    eval_id: 0, section_id: null, question_type: 'SINGLE_SELECT', content_html: '',
+    marks: 1, negative_marks: 0, time_limit_seconds: null, word_limit: null,
+    penalty_logic_type: 'NONE', options: []
+  });
+  const [editQuestion, setEditQuestion] = useState(null);
+  const [aiForm, setAiForm] = useState({ context: '', question_type: 'SINGLE_SELECT', count: 5, difficulty: 'medium' });
+  const [aiResults, setAiResults] = useState([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSelected, setAiSelected] = useState(new Set());
+  const [expandedQ, setExpandedQ] = useState(null);
+
+  const fetchEvals = useCallback(async () => {
+    try { const res = await api.get('/evaluations'); setEvaluations(res.data); } catch (e) { console.error(e); }
+  }, [api]);
+
+  const fetchSections = useCallback(async () => {
+    if (!selectedEval) return;
+    try { const res = await api.get(`/evaluations/${selectedEval}/sections`); setSections(res.data); } catch (e) { console.error(e); }
+  }, [api, selectedEval]);
+
+  const fetchQuestions = useCallback(async () => {
+    if (!selectedEval) return;
+    setLoading(true);
+    try { const res = await api.get(`/questions/by-eval/${selectedEval}`); setQuestions(res.data); } catch (e) { console.error(e); } finally { setLoading(false); }
+  }, [api, selectedEval]);
+
+  useEffect(() => { fetchEvals(); }, [fetchEvals]);
+  useEffect(() => { if (selectedEval) { fetchSections(); fetchQuestions(); } }, [selectedEval, fetchSections, fetchQuestions]);
+
+  const handleSectionSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      if (editSection) {
+        await api.put(`/evaluations/${selectedEval}/sections/${editSection.section_id}`, sectionForm);
+        toast.success('Section updated');
+      } else {
+        await api.post(`/evaluations/${selectedEval}/sections`, sectionForm);
+        toast.success('Section created');
+      }
+      setShowSectionModal(false); setSectionForm({ section_name: '', target_question_count: 0, target_total_marks: 0, instructions: '' }); setEditSection(null);
+      fetchSections();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
+  };
+
+  const deleteSection = async (sid) => {
+    if (!window.confirm('Delete this section?')) return;
+    try { await api.delete(`/evaluations/${selectedEval}/sections/${sid}`); toast.success('Section deleted'); fetchSections(); } catch (e) { toast.error('Failed'); }
+  };
+
+  const initNewQuestion = () => {
+    setEditQuestion(null);
+    setQuestionForm({
+      eval_id: parseInt(selectedEval), section_id: sections.length > 0 ? sections[0].section_id : null,
+      question_type: 'SINGLE_SELECT', content_html: '', marks: 1, negative_marks: 0,
+      time_limit_seconds: null, word_limit: null, penalty_logic_type: 'NONE',
+      options: [{ content_left: '', content_right: '', is_correct: false, display_sequence: 0 },
+        { content_left: '', content_right: '', is_correct: false, display_sequence: 1 },
+        { content_left: '', content_right: '', is_correct: false, display_sequence: 2 },
+        { content_left: '', content_right: '', is_correct: false, display_sequence: 3 }]
+    });
+    setShowQuestionModal(true);
+  };
+
+  const openEditQuestion = (q) => {
+    setEditQuestion(q);
+    setQuestionForm({
+      eval_id: q.eval_id, section_id: q.section_id, question_type: q.question_type,
+      content_html: q.content_html, marks: q.marks, negative_marks: q.negative_marks,
+      time_limit_seconds: q.time_limit_seconds, word_limit: q.word_limit,
+      penalty_logic_type: q.penalty_logic_type || 'NONE',
+      options: q.options.map(o => ({ ...o }))
+    });
+    setShowQuestionModal(true);
+  };
+
+  const addOption = () => {
+    setQuestionForm({ ...questionForm, options: [...questionForm.options, { content_left: '', content_right: '', is_correct: false, display_sequence: questionForm.options.length }] });
+  };
+
+  const removeOption = (idx) => {
+    const newOpts = questionForm.options.filter((_, i) => i !== idx).map((o, i) => ({ ...o, display_sequence: i }));
+    setQuestionForm({ ...questionForm, options: newOpts });
+  };
+
+  const updateOption = (idx, field, value) => {
+    const newOpts = [...questionForm.options];
+    newOpts[idx] = { ...newOpts[idx], [field]: value };
+    if (field === 'is_correct' && questionForm.question_type === 'SINGLE_SELECT' && value) {
+      newOpts.forEach((o, i) => { if (i !== idx) o.is_correct = false; });
+    }
+    setQuestionForm({ ...questionForm, options: newOpts });
+  };
+
+  const handleQuestionSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = { ...questionForm, eval_id: parseInt(selectedEval) };
+      if (editQuestion) {
+        await api.put(`/questions/${editQuestion.question_id}`, payload);
+        toast.success('Question updated');
+      } else {
+        await api.post('/questions', payload);
+        toast.success('Question created');
+      }
+      setShowQuestionModal(false); fetchQuestions();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
+  };
+
+  const deleteQuestion = async (qid) => {
+    if (!window.confirm('Delete this question?')) return;
+    try { await api.delete(`/questions/${qid}`); toast.success('Question deleted'); fetchQuestions(); } catch (e) { toast.error('Failed'); }
+  };
+
+  const handleAIGenerate = async () => {
+    if (!aiForm.context.trim()) { toast.error('Please provide context'); return; }
+    setAiLoading(true);
+    try {
+      const res = await api.post('/ai/generate', {
+        eval_id: parseInt(selectedEval), section_id: sections.length > 0 ? sections[0].section_id : null,
+        ...aiForm
+      });
+      setAiResults(res.data.questions);
+      setAiSelected(new Set(res.data.questions.map((_, i) => i)));
+      toast.success(`Generated ${res.data.count} questions!`);
+    } catch (err) { toast.error(err.response?.data?.detail || 'AI generation failed'); } finally { setAiLoading(false); }
+  };
+
+  const saveAIQuestions = async () => {
+    const selected = aiResults.filter((_, i) => aiSelected.has(i));
+    if (selected.length === 0) { toast.error('No questions selected'); return; }
+    try {
+      const payload = selected.map(q => ({
+        eval_id: parseInt(selectedEval),
+        section_id: sections.length > 0 ? sections[0].section_id : null,
+        question_type: q.question_type || 'SINGLE_SELECT',
+        content_html: q.content_html || q.content || '',
+        marks: q.marks || 1,
+        negative_marks: q.negative_marks || 0,
+        penalty_logic_type: q.penalty_logic_type || 'NONE',
+        options: (q.options || []).map((o, i) => ({
+          content_left: o.content_left || o.text || '',
+          content_right: o.content_right || '',
+          is_correct: o.is_correct || false,
+          display_sequence: o.display_sequence || i
+        }))
+      }));
+      await api.post('/questions/bulk', payload);
+      toast.success(`Saved ${selected.length} questions!`);
+      setShowAIModal(false); setAiResults([]); fetchQuestions();
+    } catch (err) { toast.error('Failed to save questions'); }
+  };
+
+  const getTypeLabel = (t) => QUESTION_TYPES.find(q => q.value === t)?.label || t;
+  const getTypeIcon = (t) => QUESTION_TYPES.find(q => q.value === t)?.icon || '?';
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk', color: 'hsl(210, 52%, 25%)' }}>Question Bank</h1>
+          <p className="text-sm text-muted-foreground mt-1">Manage sections and create questions</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={selectedEval} onValueChange={setSelectedEval}>
+            <SelectTrigger className="w-[250px]"><SelectValue placeholder="Select Evaluation" /></SelectTrigger>
+            <SelectContent>{evaluations.map(e => <SelectItem key={e.eval_id} value={String(e.eval_id)}>{e.eval_title}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {selectedEval && (
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => { setEditSection(null); setSectionForm({ section_name: '', target_question_count: 0, target_total_marks: 0, instructions: '' }); setShowSectionModal(true); }}>
+            <FolderOpen size={16} className="mr-2" />Manage Sections
+          </Button>
+          <Button onClick={initNewQuestion} style={{ background: 'hsl(210, 52%, 25%)' }}>
+            <Plus size={16} className="mr-2" />Create Question
+          </Button>
+          <Button data-testid="question-bank-ai-generate-button" variant="outline" onClick={() => { setAiResults([]); setShowAIModal(true); }}
+            className="border-purple-200 text-purple-700 hover:bg-purple-50">
+            <Sparkles size={16} className="mr-2" />AI Question Bank
+          </Button>
+        </div>
+      )}
+
+      {/* Sections display */}
+      {selectedEval && sections.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          {sections.map(s => (
+            <Badge key={s.section_id} variant="secondary" className="px-3 py-1.5 text-sm cursor-pointer hover:bg-blue-100"
+              onClick={() => { setEditSection(s); setSectionForm({ section_name: s.section_name, target_question_count: s.target_question_count, target_total_marks: s.target_total_marks, instructions: s.instructions || '' }); setShowSectionModal(true); }}>
+              {s.section_name} ({s.target_question_count}Q / {s.target_total_marks}M)
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {/* Questions List */}
+      {loading ? (
+        <div className="space-y-3">{[1,2,3].map(i => <Card key={i}><CardContent className="p-4"><Skeleton className="h-4 w-3/4 mb-2" /><Skeleton className="h-4 w-1/2" /></CardContent></Card>)}</div>
+      ) : !selectedEval ? (
+        <Card><CardContent className="p-12 text-center text-muted-foreground"><p>Select an evaluation to manage questions</p></CardContent></Card>
+      ) : questions.length === 0 ? (
+        <Card><CardContent className="p-12 text-center text-muted-foreground"><p>No questions yet. Create one or use AI to generate!</p></CardContent></Card>
+      ) : (
+        <div className="space-y-3">
+          {questions.map((q, idx) => (
+            <Card key={q.question_id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0"
+                    style={{ background: 'hsl(204, 55%, 92%)', color: 'hsl(210, 52%, 25%)' }}>
+                    {getTypeIcon(q.question_type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium">Q{idx + 1}</span>
+                      <Badge variant="outline" className="text-xs">{getTypeLabel(q.question_type)}</Badge>
+                      <Badge className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">{q.marks} marks</Badge>
+                      {q.negative_marks > 0 && <Badge className="text-xs bg-red-50 text-red-600 border-red-200">-{q.negative_marks}</Badge>}
+                      {q.penalty_logic_type && q.penalty_logic_type !== 'NONE' && <Badge variant="secondary" className="text-xs">Toggle {q.penalty_logic_type}</Badge>}
+                    </div>
+                    <div className="text-sm text-foreground" dangerouslySetInnerHTML={{ __html: q.content_html.substring(0, 200) + (q.content_html.length > 200 ? '...' : '') }} />
+                    {expandedQ === q.question_id && q.options.length > 0 && (
+                      <div className="mt-3 space-y-1 pl-2 border-l-2 border-border">
+                        {q.options.map((o, oi) => (
+                          <div key={oi} className={`text-sm py-1 px-2 rounded ${o.is_correct ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-muted-foreground'}`}>
+                            {q.question_type === 'MATCHING' ? `${o.content_left} → ${o.content_right}` : o.content_left}
+                            {o.is_correct && ' ✓'}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => setExpandedQ(expandedQ === q.question_id ? null : q.question_id)}>
+                      {expandedQ === q.question_id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => openEditQuestion(q)}><Edit size={16} /></Button>
+                    <Button size="sm" variant="ghost" className="text-destructive" onClick={() => deleteQuestion(q.question_id)}><Trash2 size={16} /></Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Section Modal */}
+      <Dialog open={showSectionModal} onOpenChange={setShowSectionModal}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editSection ? 'Edit Section' : 'Create Section'}</DialogTitle></DialogHeader>
+          <form onSubmit={handleSectionSubmit} className="space-y-4">
+            <div className="space-y-2"><Label>Section Name</Label><Input value={sectionForm.section_name} onChange={e => setSectionForm({...sectionForm, section_name: e.target.value})} required /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Question Count Limit</Label><Input type="number" min="0" value={sectionForm.target_question_count} onChange={e => setSectionForm({...sectionForm, target_question_count: parseInt(e.target.value) || 0})} /></div>
+              <div className="space-y-2"><Label>Max Marks Limit</Label><Input type="number" min="0" step="0.01" value={sectionForm.target_total_marks} onChange={e => setSectionForm({...sectionForm, target_total_marks: parseFloat(e.target.value) || 0})} /></div>
+            </div>
+            <div className="space-y-2"><Label>Instructions (Optional)</Label><Textarea value={sectionForm.instructions} onChange={e => setSectionForm({...sectionForm, instructions: e.target.value})} /></div>
+            <div className="flex justify-between">
+              {editSection && <Button type="button" variant="destructive" size="sm" onClick={() => { deleteSection(editSection.section_id); setShowSectionModal(false); }}>Delete</Button>}
+              <div className="flex gap-2 ml-auto"><Button type="button" variant="outline" onClick={() => setShowSectionModal(false)}>Cancel</Button><Button type="submit" style={{ background: 'hsl(210, 52%, 25%)' }}>Save</Button></div>
+            </div>
+          </form>
+          {sections.length > 0 && <div className="border-t pt-4 mt-4"><h4 className="text-sm font-semibold mb-2">Existing Sections</h4><div className="space-y-1">{sections.map(s => (<div key={s.section_id} className="flex items-center justify-between p-2 rounded bg-muted/50 text-sm"><span>{s.section_name}</span><span className="text-muted-foreground">{s.target_question_count}Q / {s.target_total_marks}M</span></div>))}</div></div>}
+        </DialogContent>
+      </Dialog>
+
+      {/* Question Modal */}
+      <Dialog open={showQuestionModal} onOpenChange={setShowQuestionModal}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle data-testid="question-type-select">{editQuestion ? 'Edit Question' : 'Create Question'}</DialogTitle></DialogHeader>
+          <form onSubmit={handleQuestionSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Section</Label>
+                <Select value={String(questionForm.section_id || '')} onValueChange={v => setQuestionForm({...questionForm, section_id: v ? parseInt(v) : null})}>
+                  <SelectTrigger><SelectValue placeholder="Select Section" /></SelectTrigger>
+                  <SelectContent>{sections.map(s => <SelectItem key={s.section_id} value={String(s.section_id)}>{s.section_name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Question Type</Label>
+                <Select value={questionForm.question_type} onValueChange={v => setQuestionForm({...questionForm, question_type: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{QUESTION_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Question Content (HTML)</Label>
+              <Textarea value={questionForm.content_html} onChange={e => setQuestionForm({...questionForm, content_html: e.target.value})} rows={4} placeholder="<p>Enter your question here...</p>" required />
+            </div>
+            <div className="grid grid-cols-4 gap-4">
+              <div className="space-y-2"><Label>Marks</Label><Input type="number" step="0.01" min="0" value={questionForm.marks} onChange={e => setQuestionForm({...questionForm, marks: parseFloat(e.target.value) || 0})} /></div>
+              <div className="space-y-2"><Label>Negative Marks</Label><Input type="number" step="0.01" min="0" value={questionForm.negative_marks} onChange={e => setQuestionForm({...questionForm, negative_marks: parseFloat(e.target.value) || 0})} /></div>
+              <div className="space-y-2"><Label>Time Limit (sec)</Label><Input type="number" min="0" value={questionForm.time_limit_seconds || ''} onChange={e => setQuestionForm({...questionForm, time_limit_seconds: parseInt(e.target.value) || null})} /></div>
+              <div className="space-y-2">
+                <Label>Penalty Logic</Label>
+                <Select value={questionForm.penalty_logic_type} onValueChange={v => setQuestionForm({...questionForm, penalty_logic_type: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{PENALTY_TYPES.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            {/* Options */}
+            {['SINGLE_SELECT', 'MULTIPLE_SELECT', 'FILL_BLANK', 'MATCHING', 'SEQUENCING', 'TOGGLE_BINARY'].includes(questionForm.question_type) && (
+              <div className="space-y-3 border rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold">Options</Label>
+                  <Button type="button" size="sm" variant="outline" onClick={addOption}><Plus size={14} className="mr-1" />Add Option</Button>
+                </div>
+                {questionForm.options.map((opt, idx) => (
+                  <div key={idx} className="flex items-center gap-2 p-2 border rounded-md bg-muted/30">
+                    <GripVertical size={14} className="text-muted-foreground flex-shrink-0" />
+                    <Input className="flex-1" placeholder={questionForm.question_type === 'TOGGLE_BINARY' ? 'Statement text' : 'Option text'}
+                      value={opt.content_left || ''} onChange={e => updateOption(idx, 'content_left', e.target.value)} />
+                    {questionForm.question_type === 'MATCHING' && (
+                      <Input className="flex-1" placeholder="Match with..."
+                        value={opt.content_right || ''} onChange={e => updateOption(idx, 'content_right', e.target.value)} />
+                    )}
+                    <div className="flex items-center gap-1.5">
+                      <Switch checked={opt.is_correct} onCheckedChange={v => updateOption(idx, 'is_correct', v)} />
+                      <span className="text-xs text-muted-foreground w-12">{opt.is_correct ? 'Correct' : 'Wrong'}</span>
+                    </div>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => removeOption(idx)}><X size={14} /></Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {questionForm.question_type === 'SUBJECTIVE_TYPING' && (
+              <div className="space-y-2"><Label>Word Limit</Label><Input type="number" value={questionForm.word_limit || ''} onChange={e => setQuestionForm({...questionForm, word_limit: parseInt(e.target.value) || null})} /></div>
+            )}
+            <div className="flex justify-end gap-3">
+              <Button type="button" variant="outline" onClick={() => setShowQuestionModal(false)}>Cancel</Button>
+              <Button type="submit" data-testid="question-editor-save-button" style={{ background: 'hsl(210, 52%, 25%)' }}><Save size={16} className="mr-2" />Save Question</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Generation Modal */}
+      <Dialog open={showAIModal} onOpenChange={setShowAIModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle><Sparkles size={20} className="inline mr-2 text-purple-600" />AI Question Generator</DialogTitle></DialogHeader>
+          <Tabs defaultValue="prompt">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="prompt">Custom Prompt</TabsTrigger>
+              <TabsTrigger value="upload">Upload File</TabsTrigger>
+            </TabsList>
+            <TabsContent value="prompt" className="space-y-4">
+              <div className="space-y-2"><Label>Context / Topic</Label><Textarea value={aiForm.context} onChange={e => setAiForm({...aiForm, context: e.target.value})} rows={5} placeholder="Enter the topic or content you want questions generated from..." /></div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2"><Label>Question Type</Label>
+                  <Select value={aiForm.question_type} onValueChange={v => setAiForm({...aiForm, question_type: v})}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{QUESTION_TYPES.slice(0, 6).map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2"><Label>Count</Label><Input type="number" min="1" max="20" value={aiForm.count} onChange={e => setAiForm({...aiForm, count: parseInt(e.target.value) || 5})} /></div>
+                <div className="space-y-2"><Label>Difficulty</Label>
+                  <Select value={aiForm.difficulty} onValueChange={v => setAiForm({...aiForm, difficulty: v})}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="easy">Easy</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="hard">Hard</SelectItem></SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Button onClick={handleAIGenerate} disabled={aiLoading} className="w-full" style={{ background: 'hsl(270, 60%, 50%)' }}>
+                {aiLoading ? 'Generating...' : <><Sparkles size={16} className="mr-2" />Generate Questions</>}
+              </Button>
+            </TabsContent>
+            <TabsContent value="upload">
+              <p className="text-sm text-muted-foreground text-center py-8">Upload a .txt or .docx file and AI will generate questions from it. (Coming in file upload integration)</p>
+            </TabsContent>
+          </Tabs>
+          {aiResults.length > 0 && (
+            <div className="border-t pt-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold">Generated Questions ({aiResults.length})</h4>
+                <Button size="sm" onClick={saveAIQuestions} style={{ background: 'hsl(210, 52%, 25%)' }}><Save size={14} className="mr-1" />Save Selected ({aiSelected.size})</Button>
+              </div>
+              {aiResults.map((q, idx) => (
+                <Card key={idx} className={`cursor-pointer transition-colors ${aiSelected.has(idx) ? 'border-blue-300 bg-blue-50/50' : 'hover:bg-muted/50'}`}
+                  onClick={() => { const ns = new Set(aiSelected); ns.has(idx) ? ns.delete(idx) : ns.add(idx); setAiSelected(ns); }}>
+                  <CardContent className="p-3">
+                    <div className="flex items-start gap-2">
+                      <input type="checkbox" checked={aiSelected.has(idx)} readOnly className="mt-1" />
+                      <div className="flex-1">
+                        <div className="text-sm" dangerouslySetInnerHTML={{ __html: q.content_html || q.content || '' }} />
+                        {q.options && <div className="mt-2 space-y-1">{q.options.map((o, oi) => (
+                          <div key={oi} className={`text-xs py-0.5 px-2 rounded ${o.is_correct ? 'bg-emerald-50 text-emerald-700' : 'text-muted-foreground'}`}>
+                            {o.content_left || o.text} {o.is_correct && '✓'}
+                          </div>
+                        ))}</div>}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+const Edit = ({ size }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg>);
