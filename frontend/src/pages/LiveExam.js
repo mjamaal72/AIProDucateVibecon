@@ -209,21 +209,65 @@ export default function LiveExam() {
 
   useEffect(() => { fetchAttempt(); }, [fetchAttempt]);
 
-  // Countdown timer
+  // Bulletproof countdown timer - isolated from other state updates
   useEffect(() => {
-    if (timeLeft <= 0 || !attempt) return;
-    timerRef.current = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(timerRef.current);
-          handleAutoSubmit();
-          return 0;
-        }
-        return prev - 1;
-      });
+    if (timeLeft <= 0) return;
+    
+    let intervalId;
+    let lastTime = Date.now();
+    let rafId;
+    let missedTicks = 0;
+    
+    const tick = () => {
+      const now = Date.now();
+      const elapsed = now - lastTime;
+      
+      // Detect if timer was paused (tab inactive) - catch up if needed
+      if (elapsed >= 2000) {
+        const missedSeconds = Math.floor(elapsed / 1000);
+        setTimeLeft(prev => {
+          const newTime = Math.max(0, prev - missedSeconds);
+          if (newTime <= 0) {
+            setTimeout(() => {
+              try { handleAutoSubmit(); } catch (e) { console.error(e); }
+            }, 0);
+          }
+          return newTime;
+        });
+        lastTime = now;
+      } else if (elapsed >= 1000) {
+        // Normal tick
+        setTimeLeft(prev => {
+          const newTime = prev - 1;
+          if (newTime <= 0) {
+            setTimeout(() => {
+              try { handleAutoSubmit(); } catch (e) { console.error(e); }
+            }, 0);
+            return 0;
+          }
+          return newTime;
+        });
+        lastTime = now;
+      }
+      
+      rafId = requestAnimationFrame(tick);
+    };
+    
+    // Start primary interval timer
+    intervalId = setInterval(() => {
+      missedTicks = 0; // Reset missed tick counter
     }, 1000);
-    return () => clearInterval(timerRef.current);
-  }, [attempt]);
+    
+    // Start requestAnimationFrame backup
+    rafId = requestAnimationFrame(tick);
+    timerRef.current = intervalId;
+    
+    // Cleanup
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [timeLeft > 0]); // Only re-run when timer starts/stops
 
   const formatTime = (s) => {
     const h = Math.floor(s / 3600);
