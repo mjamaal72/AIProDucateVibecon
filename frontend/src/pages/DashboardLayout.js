@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { ClipboardList, FileQuestion, PenTool, Trophy, GraduationCap, LogOut, Menu, X, ChevronLeft, ChevronRight, Users, Type } from 'lucide-react';
+import { ClipboardList, FileQuestion, PenTool, Trophy, GraduationCap, LogOut, Menu, X, ChevronLeft, ChevronRight, Users, Type, UsersRound } from 'lucide-react';
 import EvaluationManagement from '@/pages/EvaluationManagement';
 import QuestionBank from '@/pages/QuestionBank';
 import StudentPortal from '@/pages/StudentPortal';
@@ -12,6 +12,7 @@ import LeaderBoard from '@/pages/LeaderBoard';
 import ManualCorrection from '@/pages/ManualCorrection';
 import UserManagement from '@/pages/UserManagement';
 import FontManager from '@/pages/FontManager';
+import UserGroups from '@/pages/UserGroups';
 
 const ADMIN_TABS = [
   { path: '/', icon: ClipboardList, label: 'Evaluation Management', testId: 'sidebar-nav-evaluation-management' },
@@ -20,6 +21,7 @@ const ADMIN_TABS = [
   { path: '/leaderboard', icon: Trophy, label: 'Leaders Board', testId: 'sidebar-nav-leaderboard-item-analysis' },
   { path: '/student', icon: GraduationCap, label: 'Student Portal', testId: 'sidebar-nav-student-portal' },
   { path: '/users', icon: Users, label: 'User Management', testId: 'sidebar-nav-user-management' },
+  { path: '/groups', icon: UsersRound, label: 'User Groups', testId: 'sidebar-nav-user-groups' },
   { path: '/fonts', icon: Type, label: 'Font Manager', testId: 'sidebar-nav-font-manager' },
 ];
 
@@ -160,6 +162,7 @@ export default function DashboardLayout() {
             <Route path="/leaderboard" element={<LeaderBoard />} />
             <Route path="/student" element={<StudentPortal />} />
             <Route path="/users" element={<UserManagement />} />
+            <Route path="/groups" element={<UserGroups />} />
             <Route path="/fonts" element={<FontManager />} />
           </Routes>
         </main>
