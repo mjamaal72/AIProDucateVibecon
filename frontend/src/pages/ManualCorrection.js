@@ -150,7 +150,7 @@ export default function ManualCorrection() {
         <Tabs defaultValue={isAdmin ? 'overview' : 'my-assignments'}>
           <TabsList>
             {isAdmin && <TabsTrigger value="overview"><Users size={16} className="mr-2" />Overview & Allocations</TabsTrigger>}
-            {isAdmin && <TabsTrigger value="pending"><FileQuestion size={16} className="mr-2" />Pending Responses ({uncorrectedCount})</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="view-all"><FileQuestion size={16} className="mr-2" />View Responses ({pendingResponses.length})</TabsTrigger>}
             <TabsTrigger value="my-assignments" data-testid="examiner-correction-tab"><PenTool size={16} className="mr-2" />My Assignments {myResponses.length > 0 && `(${myResponses.length})`}</TabsTrigger>
           </TabsList>
 
@@ -227,25 +227,34 @@ export default function ManualCorrection() {
             </TabsContent>
           )}
 
-          {/* Pending Responses Tab (Admin only - all uncorrected) */}
+          {/* View All Responses Tab (Admin only - all responses with grades) */}
           {isAdmin && (
-            <TabsContent value="pending" className="mt-4">
+            <TabsContent value="view-all" className="mt-4">
               {loading ? (
                 <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-24" />)}</div>
-              ) : pendingResponses.filter(r => !r.corrected_at).length === 0 ? (
-                <Card><CardContent className="p-12 text-center text-muted-foreground"><CheckCircle size={48} className="mx-auto mb-4 opacity-30 text-emerald-500" /><p>All responses have been graded!</p></CardContent></Card>
+              ) : pendingResponses.length === 0 ? (
+                <Card><CardContent className="p-12 text-center text-muted-foreground"><FileQuestion size={48} className="mx-auto mb-4 opacity-30" /><p>No subjective responses for this evaluation.</p></CardContent></Card>
               ) : (
                 <div className="space-y-3">
-                  {pendingResponses.filter(r => !r.corrected_at).map(r => (
-                    <Card key={r.response_id} className="border-amber-200 bg-amber-50/30">
+                  {pendingResponses.map(r => (
+                    <Card key={r.response_id} className={`transition-all hover:shadow-md ${r.corrected_at ? 'border-emerald-200 bg-emerald-50/30' : 'border-amber-200 bg-amber-50/30'}`}>
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
                               <Badge variant="outline" className="text-xs">{r.question_type}</Badge>
                               <Badge className="text-xs bg-blue-50 text-blue-700">{r.question_marks} marks</Badge>
                               <span className="text-xs text-muted-foreground">Student: {r.student_name} ({r.student_uid})</span>
-                              {r.assigned_examiner_name && <Badge className="text-xs bg-purple-50 text-purple-700">Assigned to: {r.assigned_examiner_name}</Badge>}
+                              {r.assigned_examiner_name && (
+                                <Badge className="text-xs bg-purple-50 text-purple-700">
+                                  Assigned to: {r.assigned_examiner_name}
+                                </Badge>
+                              )}
+                              {r.corrected_at && (
+                                <Badge className="text-xs bg-emerald-50 text-emerald-700">
+                                  ✓ Graded by {r.assigned_examiner_name || 'Examiner'}
+                                </Badge>
+                              )}
                             </div>
                             <div className="text-sm" dangerouslySetInnerHTML={{ __html: r.question_content_html?.substring(0, 150) + '...' }} />
                             {r.candidate_response_payload && (
@@ -254,11 +263,30 @@ export default function ManualCorrection() {
                                 {r.candidate_response_payload.substring(0, 300)}
                               </div>
                             )}
+                            {r.examiner_remarks && (
+                              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+                                <span className="text-xs text-blue-700 font-medium block mb-1">Examiner Remarks:</span>
+                                <p className="text-blue-900">{r.examiner_remarks}</p>
+                              </div>
+                            )}
                           </div>
                           <div className="text-right flex-shrink-0">
-                            <Button size="sm" onClick={() => openGradeModal(r)} style={{ background: 'hsl(210, 52%, 25%)' }}>
-                              <PenTool size={14} className="mr-1" />Grade Now
-                            </Button>
+                            {r.corrected_at ? (
+                              <div>
+                                <p className="text-2xl font-bold text-emerald-600">{r.manual_marks}<span className="text-sm text-muted-foreground">/{r.question_marks}</span></p>
+                                <p className="text-xs text-muted-foreground mb-2">Graded</p>
+                                <Button size="sm" variant="outline" onClick={() => openGradeModal(r)}>
+                                  <PenTool size={14} className="mr-1" />Modify Grade
+                                </Button>
+                              </div>
+                            ) : (
+                              <div>
+                                <p className="text-xs text-amber-600 mb-2">Not graded</p>
+                                <Button size="sm" onClick={() => openGradeModal(r)} style={{ background: 'hsl(210, 52%, 25%)' }}>
+                                  <PenTool size={14} className="mr-1" />Grade Now
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </CardContent>
