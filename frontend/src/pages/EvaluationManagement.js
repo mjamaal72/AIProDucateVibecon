@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Plus, Edit, FileQuestion, Trophy, Clock, Users, Calendar, Search, ToggleLeft, UserPlus, X } from 'lucide-react';
+import { Plus, Edit, FileQuestion, Trophy, Clock, Users, Calendar, Search, ToggleLeft, UserPlus, X, Archive, RotateCcw, Trash2 } from 'lucide-react';
 
 export default function EvaluationManagement() {
   const { api } = useAuth();
@@ -150,6 +150,27 @@ export default function EvaluationManagement() {
       fetchAttendees(selectedEvalForAttendees.eval_id);
     } catch (e) {
       toast.error('Failed to remove');
+    }
+  };
+
+  const handleArchiveEvaluation = async (evalId, evalTitle) => {
+    if (!window.confirm(`Archive "${evalTitle}"? It will be moved to the Archive section.`)) return;
+    try {
+      await api.put(`/evaluations/${evalId}/archive`);
+      toast.success('Evaluation archived');
+      fetchEvaluations();
+    } catch (e) {
+      toast.error('Failed to archive evaluation');
+    }
+  };
+
+  const handleDeleteAllAttempts = async (evalId, evalTitle) => {
+    if (!window.confirm(`Delete ALL student attempts for "${evalTitle}"?\n\nThis will:\n- Remove all attempt records\n- Reset leaderboard\n- Allow students to retake\n\nThis action cannot be undone!`)) return;
+    try {
+      const res = await api.delete(`/evaluations/${evalId}/attempts`);
+      toast.success(res.data.message);
+    } catch (e) {
+      toast.error('Failed to delete attempts');
     }
   };
 
@@ -351,6 +372,14 @@ export default function EvaluationManagement() {
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => window.location.href = `/leaderboard?eval=${ev.eval_id}`}>
                     <Trophy size={14} />
+                  </Button>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button size="sm" variant="outline" className="flex-1" onClick={() => handleDeleteAllAttempts(ev.eval_id, ev.eval_title)} title="Delete All Attempts">
+                    <Trash2 size={14} className="mr-1" />Clear Attempts
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleArchiveEvaluation(ev.eval_id, ev.eval_title)} title="Archive Evaluation">
+                    <Archive size={14} className="mr-1" />Archive
                   </Button>
                 </div>
               </CardContent>
