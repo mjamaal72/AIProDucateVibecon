@@ -6,14 +6,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Plus, Edit, FileQuestion, Trophy, Clock, Users, Calendar, Search, ToggleLeft, UserPlus, X, Archive, RotateCcw, Trash2, MoreVertical } from 'lucide-react';
+import { Plus, Edit, FileQuestion, Trophy, Clock, Users, Calendar, Search, ToggleLeft, UserPlus, X, Archive, RotateCcw, Trash2, MoreVertical, AlertTriangle } from 'lucide-react';
 
 export default function EvaluationManagement() {
   const { api } = useAuth();
@@ -38,6 +39,9 @@ export default function EvaluationManagement() {
   const [selectedUser, setSelectedUser] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('');
   const [bulkText, setBulkText] = useState('');
+  
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, type: null, evalId: null, evalTitle: '' });
 
   const fetchEvaluations = useCallback(async () => {
     try {
@@ -155,23 +159,33 @@ export default function EvaluationManagement() {
   };
 
   const handleArchiveEvaluation = async (evalId, evalTitle) => {
-    if (!window.confirm(`Archive "${evalTitle}"? It will be moved to the Archive section.`)) return;
-    try {
-      await api.put(`/evaluations/${evalId}/archive`);
-      toast.success('Evaluation archived');
-      fetchEvaluations();
-    } catch (e) {
-      toast.error('Failed to archive evaluation');
-    }
+    setConfirmDialog({ open: true, type: 'archive', evalId, evalTitle });
   };
 
   const handleDeleteAllAttempts = async (evalId, evalTitle) => {
-    if (!window.confirm(`Delete ALL student attempts for "${evalTitle}"?\n\nThis will:\n- Remove all attempt records\n- Reset leaderboard\n- Allow students to retake\n\nThis action cannot be undone!`)) return;
-    try {
-      const res = await api.delete(`/evaluations/${evalId}/attempts`);
-      toast.success(res.data.message);
-    } catch (e) {
-      toast.error('Failed to delete attempts');
+    setConfirmDialog({ open: true, type: 'delete', evalId, evalTitle });
+  };
+  
+  const confirmAction = async () => {
+    const { type, evalId, evalTitle } = confirmDialog;
+    setConfirmDialog({ open: false, type: null, evalId: null, evalTitle: '' });
+    
+    if (type === 'archive') {
+      try {
+        await api.put(`/evaluations/${evalId}/archive`);
+        toast.success('Evaluation archived successfully');
+        fetchEvaluations();
+      } catch (e) {
+        toast.error(e.response?.data?.detail || 'Failed to archive evaluation');
+      }
+    } else if (type === 'delete') {
+      try {
+        const res = await api.delete(`/evaluations/${evalId}/attempts`);
+        toast.success(res.data.message || 'All attempts deleted successfully');
+        fetchEvaluations();
+      } catch (e) {
+        toast.error(e.response?.data?.detail || 'Failed to delete attempts');
+      }
     }
   };
 
@@ -530,6 +544,48 @@ export default function EvaluationManagement() {
           </div>
         </DialogContent>
       </Dialog>
+      
+      {/* Confirmation AlertDialog */}
+      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => !open && setConfirmDialog({ open: false, type: null, evalId: null, evalTitle: '' })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="text-amber-600" size={24} />
+              {confirmDialog.type === 'archive' ? 'Archive Evaluation?' : 'Delete All Attempts?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2 pt-2">
+              {confirmDialog.type === 'archive' ? (
+                <>
+                  <p className="font-medium text-foreground">"{confirmDialog.evalTitle}"</p>
+                  <p>This evaluation will be moved to the Archive section. You can restore it later if needed.</p>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium text-foreground">"{confirmDialog.evalTitle}"</p>
+                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                    <p className="text-sm font-semibold text-amber-900 mb-2">This will:</p>
+                    <ul className="text-sm text-amber-800 space-y-1 list-disc list-inside">
+                      <li>Remove all student attempt records</li>
+                      <li>Reset the leaderboard to empty</li>
+                      <li>Allow students to retake the evaluation</li>
+                    </ul>
+                  </div>
+                  <p className="text-destructive font-medium mt-3">⚠️ This action cannot be undone!</p>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmAction}
+              className={confirmDialog.type === 'delete' ? 'bg-destructive hover:bg-destructive/90' : 'bg-amber-600 hover:bg-amber-700'}
+            >
+              {confirmDialog.type === 'archive' ? 'Archive' : 'Delete All Attempts'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
