@@ -22,6 +22,8 @@ from routers.correction_router import router as correction_router
 from routers.proctoring_router import router as proctoring_router
 from routers.analytics_router import router as analytics_router
 from routers.font_router import router as font_router
+from routers.user_groups_router import router as user_groups_router
+from routers.attendee_router import router as attendee_router
 
 # Include all routers
 app.include_router(auth_router)
@@ -34,6 +36,8 @@ app.include_router(correction_router)
 app.include_router(proctoring_router)
 app.include_router(analytics_router)
 app.include_router(font_router)
+app.include_router(user_groups_router)
+app.include_router(attendee_router)
 
 # Health check
 @app.get("/api/health")

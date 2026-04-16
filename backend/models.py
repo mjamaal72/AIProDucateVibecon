@@ -209,3 +209,17 @@ class PreRegisteredAttendee(Base):
     unique_identifier = Column(String(255))
     added_at = Column(TIMESTAMP(timezone=True), server_default=text("CURRENT_TIMESTAMP"))
     resolved = Column(Boolean, default=False)
+
+class UserGroup(Base):
+    __tablename__ = 'user_groups'
+    group_id = Column(Integer, primary_key=True, autoincrement=True)
+    group_name = Column(String(255), unique=True, nullable=False)
+    description = Column(Text)
+    created_by = Column(UUID(as_uuid=True), ForeignKey('users.user_id'))
+    created_at = Column(TIMESTAMP(timezone=True), server_default=text("CURRENT_TIMESTAMP"))
+
+class UserGroupMember(Base):
+    __tablename__ = 'user_group_members'
+    group_id = Column(Integer, ForeignKey('user_groups.group_id', ondelete='CASCADE'), primary_key=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.user_id', ondelete='CASCADE'), primary_key=True)
+    added_at = Column(TIMESTAMP(timezone=True), server_default=text("CURRENT_TIMESTAMP"))
