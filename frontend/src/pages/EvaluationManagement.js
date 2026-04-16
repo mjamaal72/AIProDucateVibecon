@@ -9,8 +9,10 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Plus, Edit, FileQuestion, Trophy, Clock, Users, Calendar, Search, ToggleLeft } from 'lucide-react';
+import { Plus, Edit, FileQuestion, Trophy, Clock, Users, Calendar, Search, ToggleLeft, UserPlus, X } from 'lucide-react';
 
 export default function EvaluationManagement() {
   const { api } = useAuth();
@@ -26,6 +28,16 @@ export default function EvaluationManagement() {
     enable_proctoring: false, show_instant_results: false, allow_navigation: true,
     attendee_ids: ''
   });
+  
+  // Attendee Management State
+  const [showAttendees, setShowAttendees] = useState(false);
+  const [selectedEvalForAttendees, setSelectedEvalForAttendees] = useState(null);
+  const [attendees, setAttendees] = useState({ registered: [], pre_registered: [] });
+  const [users, setUsers] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [selectedUser, setSelectedUser] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState('');
+  const [bulkText, setBulkText] = useState('');
 
   const fetchEvaluations = useCallback(async () => {
     try {
@@ -40,6 +52,107 @@ export default function EvaluationManagement() {
   }, [api]);
 
   useEffect(() => { fetchEvaluations(); }, [fetchEvaluations]);
+  
+  // Fetch users and groups for attendee management
+  const fetchUsersAndGroups = useCallback(async () => {
+    try {
+      const [usersRes, groupsRes] = await Promise.all([
+        api.get('/auth/users'),
+        api.get('/user-groups')
+      ]);
+      setUsers(usersRes.data.filter(u => u.role === 'STUDENT'));
+      setGroups(groupsRes.data);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [api]);
+
+  const fetchAttendees = async (evalId) => {
+    try {
+      const res = await api.get(`/evaluations/${evalId}/attendees`);
+      setAttendees(res.data);
+    } catch (e) {
+      toast.error('Failed to load attendees');
+    }
+  };
+
+  const openAttendeeModal = (evaluation) => {
+    setSelectedEvalForAttendees(evaluation);
+    fetchAttendees(evaluation.eval_id);
+    fetchUsersAndGroups();
+    setShowAttendees(true);
+  };
+
+  const handleAddUser = async () => {
+    if (!selectedUser) {
+      toast.error('Please select a user');
+      return;
+    }
+    try {
+      await api.post(`/evaluations/${selectedEvalForAttendees.eval_id}/attendees/user`, {
+        user_id: selectedUser
+      });
+      toast.success('User added as attendee');
+      setSelectedUser('');
+      fetchAttendees(selectedEvalForAttendees.eval_id);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to add user');
+    }
+  };
+
+  const handleAddGroup = async () => {
+    if (!selectedGroup) {
+      toast.error('Please select a group');
+      return;
+    }
+    try {
+      const res = await api.post(`/evaluations/${selectedEvalForAttendees.eval_id}/attendees/group`, {
+        group_id: parseInt(selectedGroup)
+      });
+      toast.success(res.data.message);
+      setSelectedGroup('');
+      fetchAttendees(selectedEvalForAttendees.eval_id);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to add group');
+    }
+  };
+
+  const handleBulkAdd = async () => {
+    if (!bulkText.trim()) {
+      toast.error('Please enter emails or VCDs');
+      return;
+    }
+    try {
+      const res = await api.post(`/evaluations/${selectedEvalForAttendees.eval_id}/attendees/bulk`, {
+        entries: bulkText
+      });
+      toast.success(res.data.message);
+      setBulkText('');
+      fetchAttendees(selectedEvalForAttendees.eval_id);
+    } catch (e) {
+      toast.error('Failed to add attendees');
+    }
+  };
+
+  const handleRemoveAttendee = async (userId) => {
+    try {
+      await api.delete(`/evaluations/${selectedEvalForAttendees.eval_id}/attendees/user/${userId}`);
+      toast.success('Attendee removed');
+      fetchAttendees(selectedEvalForAttendees.eval_id);
+    } catch (e) {
+      toast.error('Failed to remove attendee');
+    }
+  };
+
+  const handleRemovePreRegistered = async (preregId) => {
+    try {
+      await api.delete(`/evaluations/${selectedEvalForAttendees.eval_id}/attendees/pre-registered/${preregId}`);
+      toast.success('Pre-registered attendee removed');
+      fetchAttendees(selectedEvalForAttendees.eval_id);
+    } catch (e) {
+      toast.error('Failed to remove');
+    }
+  };
 
   const resetForm = () => {
     setForm({ eval_title: '', duration_minutes: 60, max_attempts: 1, start_time: '', end_time: '', visibility: 'INVITE_ONLY', passing_percentage: '', shuffle_categories: false, shuffle_questions: false, enable_proctoring: false, show_instant_results: false, allow_navigation: true, attendee_ids: '' });
@@ -236,8 +349,11 @@ export default function EvaluationManagement() {
                   <Button size="sm" variant="outline" className="flex-1" data-testid="evaluation-card-open-button" onClick={() => openEdit(ev)}>
                     <Edit size={14} className="mr-1" />Edit
                   </Button>
-                  <Button size="sm" variant="outline" className="flex-1" onClick={() => window.location.href = `/questions?eval=${ev.eval_id}`}>
-                    <FileQuestion size={14} className="mr-1" />Questions
+                  <Button size="sm" variant="outline" onClick={() => openAttendeeModal(ev)} title="Manage Attendees">
+                    <UserPlus size={14} />
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => window.location.href = `/questions?eval=${ev.eval_id}`}>
+                    <FileQuestion size={14} />
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => window.location.href = `/leaderboard?eval=${ev.eval_id}`}>
                     <Trophy size={14} />
@@ -248,6 +364,128 @@ export default function EvaluationManagement() {
           ))}
         </div>
       )}
+      
+      {/* Attendee Management Modal */}
+      <Dialog open={showAttendees} onOpenChange={setShowAttendees}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Manage Attendees - {selectedEvalForAttendees?.eval_title}</DialogTitle>
+          </DialogHeader>
+          
+          <Tabs defaultValue="individual" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="individual">Individual User</TabsTrigger>
+              <TabsTrigger value="group">Group</TabsTrigger>
+              <TabsTrigger value="bulk">Bulk Entry</TabsTrigger>
+            </TabsList>
+            
+            {/* Individual User Tab */}
+            <TabsContent value="individual" className="space-y-4">
+              <div className="flex gap-2">
+                <Select value={selectedUser} onValueChange={setSelectedUser}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Select a user..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {users.filter(u => !attendees.registered?.some(a => a.user_id === u.user_id)).map(u => (
+                      <SelectItem key={u.user_id} value={u.user_id}>
+                        {u.full_name} ({u.unique_identifier})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button onClick={handleAddUser}>Add User</Button>
+              </div>
+            </TabsContent>
+            
+            {/* Group Tab */}
+            <TabsContent value="group" className="space-y-4">
+              <div className="flex gap-2">
+                <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Select a group..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groups.map(g => (
+                      <SelectItem key={g.group_id} value={g.group_id.toString()}>
+                        {g.group_name} ({g.member_count} members)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button onClick={handleAddGroup}>Add Group</Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                All users from the selected group will be added as attendees.
+              </p>
+            </TabsContent>
+            
+            {/* Bulk Entry Tab */}
+            <TabsContent value="bulk" className="space-y-4">
+              <div>
+                <Label>Enter VCDs or Emails</Label>
+                <Textarea 
+                  value={bulkText}
+                  onChange={e => setBulkText(e.target.value)}
+                  rows={6}
+                  placeholder="Paste VCDs or emails (comma, newline, or semicolon separated)&#10;&#10;Example:&#10;student001, student002&#10;john@example.com&#10;jane@example.com"
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  • Registered users will be added immediately<br />
+                  • Unregistered emails/VCDs will be pre-registered (auto-granted access when they sign up)
+                </p>
+              </div>
+              <Button onClick={handleBulkAdd} className="w-full">Add Attendees</Button>
+            </TabsContent>
+          </Tabs>
+          
+          {/* Current Attendees List */}
+          <div className="border-t pt-4 mt-4 space-y-4">
+            <div>
+              <Label className="text-base font-semibold">Registered Attendees ({attendees.registered?.length || 0})</Label>
+              <div className="mt-2 space-y-2 max-h-[200px] overflow-y-auto">
+                {(attendees.registered?.length || 0) === 0 ? (
+                  <p className="text-sm text-muted-foreground">No registered attendees yet</p>
+                ) : (
+                  attendees.registered?.map(attendee => (
+                    <div key={attendee.user_id} className="flex items-center justify-between p-2 border rounded">
+                      <div>
+                        <p className="font-medium text-sm">{attendee.full_name}</p>
+                        <p className="text-xs text-muted-foreground">{attendee.unique_identifier} • {attendee.email}</p>
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={() => handleRemoveAttendee(attendee.user_id)}>
+                        <X size={16} />
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            
+            <div>
+              <Label className="text-base font-semibold">Pre-Registered ({attendees.pre_registered?.length || 0})</Label>
+              <p className="text-xs text-muted-foreground mb-2">Users who will get auto-access when they register</p>
+              <div className="space-y-2 max-h-[150px] overflow-y-auto">
+                {(attendees.pre_registered?.length || 0) === 0 ? (
+                  <p className="text-sm text-muted-foreground">No pre-registered attendees</p>
+                ) : (
+                  attendees.pre_registered?.map(prereg => (
+                    <div key={prereg.id} className="flex items-center justify-between p-2 border rounded bg-amber-50">
+                      <div>
+                        <p className="font-medium text-sm">{prereg.email || prereg.unique_identifier}</p>
+                        <Badge variant="secondary" className="text-xs">Pending Registration</Badge>
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={() => handleRemovePreRegistered(prereg.id)}>
+                        <X size={16} />
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
