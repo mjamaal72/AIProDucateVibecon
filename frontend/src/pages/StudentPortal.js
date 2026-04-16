@@ -91,22 +91,29 @@ export default function StudentPortal() {
                 const myAttempts = attempts[ev.eval_id] || [];
                 const inProgress = myAttempts.find(a => a.status === 'IN_PROGRESS');
                 const completedCount = myAttempts.filter(a => a.status === 'SUBMITTED').length;
-                const canAttempt = completedCount < ev.max_attempts;
+                const isCreator = ev.created_by === user?.user_id;
+                const canAttempt = isCreator || completedCount < ev.max_attempts;
 
                 return (
                   <Card key={ev.eval_id} className="group hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
                         <CardTitle className="text-base">{ev.eval_title}</CardTitle>
-                        <Badge className={ev.visibility === 'PUBLIC' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}>
-                          {ev.visibility === 'PUBLIC' ? 'Public' : 'Invited'}
-                        </Badge>
+                        <div className="flex gap-1">
+                          {isCreator && <Badge className="bg-purple-100 text-purple-700 text-xs">Creator</Badge>}
+                          <Badge className={ev.visibility === 'PUBLIC' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}>
+                            {ev.visibility === 'PUBLIC' ? 'Public' : 'Invited'}
+                          </Badge>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1.5"><Clock size={14} /><span>{ev.duration_minutes} minutes</span></div>
-                        <div className="flex items-center gap-1.5"><Users size={14} /><span>{ev.max_attempts} attempt{ev.max_attempts > 1 ? 's' : ''}</span></div>
+                        <div className="flex items-center gap-1.5">
+                          <Users size={14} />
+                          <span>{isCreator ? '∞ attempts' : `${ev.max_attempts} attempt${ev.max_attempts > 1 ? 's' : ''}`}</span>
+                        </div>
                         <div className="flex items-center gap-1.5"><Calendar size={14} /><span>{new Date(ev.start_time).toLocaleDateString()}</span></div>
                         {ev.passing_percentage && <div className="flex items-center gap-1.5"><Trophy size={14} /><span>Pass: {ev.passing_percentage}%</span></div>}
                       </div>
@@ -117,10 +124,17 @@ export default function StudentPortal() {
                         {!ev.allow_navigation && <Badge variant="secondary" className="text-xs">Linear</Badge>}
                       </div>
 
-                      {completedCount > 0 && (
+                      {completedCount > 0 && !isCreator && (
                         <div className="text-sm text-muted-foreground">
                           <CheckCircle size={14} className="inline mr-1 text-emerald-500" />
                           {completedCount}/{ev.max_attempts} attempts used
+                        </div>
+                      )}
+                      
+                      {isCreator && completedCount > 0 && (
+                        <div className="text-sm text-purple-600">
+                          <CheckCircle size={14} className="inline mr-1" />
+                          {completedCount} test attempts (unlimited as creator)
                         </div>
                       )}
 

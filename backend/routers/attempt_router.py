@@ -46,24 +46,28 @@ async def start_attempt(eval_id: int, current_user: dict = Depends(get_current_u
     if not evaluation.is_active:
         raise HTTPException(status_code=400, detail="Evaluation is not active")
     
-    # Check if student is invited (for INVITE_ONLY)
-    if evaluation.visibility == 'INVITE_ONLY':
+    # Check if current user is the creator of this evaluation
+    is_creator = str(evaluation.created_by) == user_id
+    
+    # Check if student is invited (for INVITE_ONLY) - Skip for creator
+    if not is_creator and evaluation.visibility == 'INVITE_ONLY':
         att_result = await db.execute(select(EvaluationAttendee).where(
             EvaluationAttendee.eval_id == eval_id, EvaluationAttendee.user_id == user_id
         ))
         if not att_result.scalar_one_or_none():
             raise HTTPException(status_code=403, detail="You are not invited to this evaluation")
     
-    # Check attempt count
-    count_result = await db.execute(
-        select(func.count()).select_from(EvaluationAttempt).where(
-            EvaluationAttempt.eval_id == eval_id,
-            EvaluationAttempt.candidate_id == user_id
+    # Check attempt count - Skip for creator (unlimited attempts for testing)
+    if not is_creator:
+        count_result = await db.execute(
+            select(func.count()).select_from(EvaluationAttempt).where(
+                EvaluationAttempt.eval_id == eval_id,
+                EvaluationAttempt.candidate_id == user_id
+            )
         )
-    )
-    attempt_count = count_result.scalar()
-    if attempt_count >= evaluation.max_attempts:
-        raise HTTPException(status_code=400, detail=f"Maximum attempts ({evaluation.max_attempts}) reached")
+        attempt_count = count_result.scalar()
+        if attempt_count >= evaluation.max_attempts:
+            raise HTTPException(status_code=400, detail=f"Maximum attempts ({evaluation.max_attempts}) reached")
     
     # Check for in-progress attempt
     ip_result = await db.execute(

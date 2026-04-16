@@ -70,7 +70,7 @@ async def list_evaluations(archived: bool = False, current_user: dict = Depends(
     role = current_user.get('role')
     user_id = current_user.get('sub')
     if role == 'STUDENT':
-        # Students see public + invited evaluations
+        # Students see: public evaluations + invited evaluations + evaluations they created
         public_q = select(Evaluation).where(Evaluation.visibility == 'PUBLIC', Evaluation.is_active == True, Evaluation.is_archived == archived)
         result_pub = await db.execute(public_q)
         public_evals = result_pub.scalars().all()
@@ -81,7 +81,13 @@ async def list_evaluations(archived: bool = False, current_user: dict = Depends(
         result_inv = await db.execute(invited_q)
         invited_evals = result_inv.scalars().all()
         
-        all_evals = {e.eval_id: e for e in list(public_evals) + list(invited_evals)}
+        # Include evaluations created by this user (even if they're a student)
+        created_q = select(Evaluation).where(Evaluation.created_by == user_id, Evaluation.is_active == True, Evaluation.is_archived == archived)
+        result_created = await db.execute(created_q)
+        created_evals = result_created.scalars().all()
+        
+        # Combine all evaluations (use dict to deduplicate)
+        all_evals = {e.eval_id: e for e in list(public_evals) + list(invited_evals) + list(created_evals)}
         return [serialize_eval(e) for e in all_evals.values()]
     else:
         # Admin/Examiner see all or their own
