@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Plus, Edit, FileQuestion, Trophy, Clock, Users, Calendar, Search, ToggleLeft, UserPlus, X, Archive, RotateCcw, Trash2, MoreVertical, AlertTriangle } from 'lucide-react';
+import { Plus, Edit, FileQuestion, Trophy, Clock, Users, Calendar, Search, ToggleLeft, UserPlus, X, Archive, RotateCcw, Trash2, MoreVertical, AlertTriangle, Lock, Unlock } from 'lucide-react';
 
 export default function EvaluationManagement() {
   const { api } = useAuth();
@@ -41,7 +41,7 @@ export default function EvaluationManagement() {
   const [bulkText, setBulkText] = useState('');
   
   // Confirmation dialog state
-  const [confirmDialog, setConfirmDialog] = useState({ open: false, type: null, evalId: null, evalTitle: '' });
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, type: null, evalId: null, evalTitle: '', isLocked: false });
 
   const fetchEvaluations = useCallback(async () => {
     try {
@@ -159,16 +159,24 @@ export default function EvaluationManagement() {
   };
 
   const handleArchiveEvaluation = async (evalId, evalTitle) => {
-    setConfirmDialog({ open: true, type: 'archive', evalId, evalTitle });
+    setConfirmDialog({ open: true, type: 'archive', evalId, evalTitle, isLocked: false });
   };
 
   const handleDeleteAllAttempts = async (evalId, evalTitle) => {
-    setConfirmDialog({ open: true, type: 'delete', evalId, evalTitle });
+    setConfirmDialog({ open: true, type: 'delete', evalId, evalTitle, isLocked: false });
+  };
+  
+  const handleForceUnlock = async (evalId, evalTitle, isLocked) => {
+    if (!isLocked) {
+      toast.info('Evaluation is already unlocked');
+      return;
+    }
+    setConfirmDialog({ open: true, type: 'unlock', evalId, evalTitle, isLocked });
   };
   
   const confirmAction = async () => {
     const { type, evalId, evalTitle } = confirmDialog;
-    setConfirmDialog({ open: false, type: null, evalId: null, evalTitle: '' });
+    setConfirmDialog({ open: false, type: null, evalId: null, evalTitle: '', isLocked: false });
     
     if (type === 'archive') {
       try {
@@ -185,6 +193,17 @@ export default function EvaluationManagement() {
         fetchEvaluations();
       } catch (e) {
         toast.error(e.response?.data?.detail || 'Failed to delete attempts');
+      }
+    } else if (type === 'unlock') {
+      try {
+        const res = await api.put(`/evaluations/${evalId}/force-unlock`);
+        toast.success(res.data.message || 'Evaluation unlocked for editing');
+        if (res.data.warning) {
+          toast.warning(res.data.warning, { duration: 5000 });
+        }
+        fetchEvaluations();
+      } catch (e) {
+        toast.error(e.response?.data?.detail || 'Failed to unlock evaluation');
       }
     }
   };
@@ -374,6 +393,7 @@ export default function EvaluationManagement() {
                   {ev.shuffle_categories && <Badge variant="secondary" className="text-xs">Shuffle Cat</Badge>}
                   {ev.enable_proctoring && <Badge variant="secondary" className="text-xs">Proctored</Badge>}
                   {ev.show_instant_results && <Badge variant="secondary" className="text-xs">Results</Badge>}
+                  {ev.is_locked_for_editing && <Badge className="text-xs bg-red-100 text-red-700">🔒 Locked</Badge>}
                 </div>
                 <div className="flex gap-2 pt-2">
                   <Button size="sm" variant="outline" className="flex-1" data-testid="evaluation-card-edit-button" onClick={() => openEdit(ev)}>
@@ -398,6 +418,16 @@ export default function EvaluationManagement() {
                         Leaderboard
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
+                      {ev.is_locked_for_editing && (
+                        <DropdownMenuItem 
+                          onClick={() => handleForceUnlock(ev.eval_id, ev.eval_title, ev.is_locked_for_editing)}
+                          className="text-blue-600 focus:text-blue-600"
+                          data-testid="evaluation-card-force-unlock-menu"
+                        >
+                          <Edit size={14} className="mr-2" />
+                          Force Unlock for Editing
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem 
                         onClick={() => handleDeleteAllAttempts(ev.eval_id, ev.eval_title)}
                         className="text-orange-600 focus:text-orange-600"
@@ -559,6 +589,27 @@ export default function EvaluationManagement() {
                   <p className="font-medium text-foreground">"{confirmDialog.evalTitle}"</p>
                   <p>This evaluation will be moved to the Archive section. You can restore it later if needed.</p>
                 </>
+              ) : confirmDialog.type === 'unlock' ? (
+                <>
+                  <p className="font-medium text-foreground">"{confirmDialog.evalTitle}"</p>
+                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <p className="text-sm font-semibold text-blue-900 mb-2">This will allow you to:</p>
+                    <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+                      <li>Edit questions and settings</li>
+                      <li>Modify sections and content</li>
+                      <li>Change evaluation configuration</li>
+                    </ul>
+                  </div>
+                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                    <p className="text-sm font-semibold text-amber-900 mb-2">⚠️ Warning:</p>
+                    <ul className="text-sm text-amber-800 space-y-1 list-disc list-inside">
+                      <li>Students with active attempts may be affected</li>
+                      <li>Changes will apply to ongoing exams immediately</li>
+                      <li>Student responses may become inconsistent</li>
+                    </ul>
+                  </div>
+                  <p className="text-blue-700 font-medium mt-3">💡 Tip: Consider creating a new evaluation instead, or delete all attempts first if it's safe to reset.</p>
+                </>
               ) : (
                 <>
                   <p className="font-medium text-foreground">"{confirmDialog.evalTitle}"</p>
@@ -580,9 +631,13 @@ export default function EvaluationManagement() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction 
               onClick={confirmAction}
-              className={confirmDialog.type === 'delete' ? 'bg-destructive hover:bg-destructive/90' : 'bg-amber-600 hover:bg-amber-700'}
+              className={
+                confirmDialog.type === 'delete' ? 'bg-destructive hover:bg-destructive/90' : 
+                confirmDialog.type === 'unlock' ? 'bg-blue-600 hover:bg-blue-700' :
+                'bg-amber-600 hover:bg-amber-700'
+              }
             >
-              {confirmDialog.type === 'archive' ? 'Archive' : 'Delete All Attempts'}
+              {confirmDialog.type === 'archive' ? 'Archive' : confirmDialog.type === 'unlock' ? 'Force Unlock' : 'Delete All Attempts'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -459,3 +459,34 @@ async def delete_all_attempts(
         "deleted_count": deleted_count
     }
 
+@router.put("/{eval_id}/force-unlock")
+async def force_unlock_evaluation(
+    eval_id: int,
+    current_user: dict = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Force unlock an evaluation for editing, even if there are active student attempts.
+    
+    Warning: This allows editing questions/settings while students may be taking the exam.
+    Use with caution."""
+    result = await db.execute(select(Evaluation).where(Evaluation.eval_id == eval_id))
+    evaluation = result.scalar_one_or_none()
+    if not evaluation:
+        raise HTTPException(status_code=404, detail="Evaluation not found")
+    
+    # Check if there are any attempts
+    attempts_result = await db.execute(
+        select(func.count()).select_from(EvaluationAttempt).where(EvaluationAttempt.eval_id == eval_id)
+    )
+    attempt_count = attempts_result.scalar()
+    
+    # Force unlock
+    evaluation.is_locked_for_editing = False
+    await db.commit()
+    
+    return {
+        "message": f"Evaluation '{evaluation.eval_title}' force unlocked for editing",
+        "attempt_count": attempt_count,
+        "warning": "Active student attempts exist" if attempt_count > 0 else None
+    }
+
