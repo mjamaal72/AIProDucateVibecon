@@ -25,8 +25,7 @@ export default function EvaluationManagement() {
     eval_title: '', duration_minutes: 60, max_attempts: 1,
     start_time: '', end_time: '', visibility: 'INVITE_ONLY',
     passing_percentage: '', shuffle_categories: false, shuffle_questions: false,
-    enable_proctoring: false, show_instant_results: false, allow_navigation: true,
-    attendee_ids: ''
+    enable_proctoring: false, show_instant_results: false, allow_navigation: true
   });
   
   // Attendee Management State
@@ -155,7 +154,7 @@ export default function EvaluationManagement() {
   };
 
   const resetForm = () => {
-    setForm({ eval_title: '', duration_minutes: 60, max_attempts: 1, start_time: '', end_time: '', visibility: 'INVITE_ONLY', passing_percentage: '', shuffle_categories: false, shuffle_questions: false, enable_proctoring: false, show_instant_results: false, allow_navigation: true, attendee_ids: '' });
+    setForm({ eval_title: '', duration_minutes: 60, max_attempts: 1, start_time: '', end_time: '', visibility: 'INVITE_ONLY', passing_percentage: '', shuffle_categories: false, shuffle_questions: false, enable_proctoring: false, show_instant_results: false, allow_navigation: true });
     setEditEval(null);
   };
 
@@ -168,7 +167,7 @@ export default function EvaluationManagement() {
       visibility: ev.visibility, passing_percentage: ev.passing_percentage || '',
       shuffle_categories: ev.shuffle_categories, shuffle_questions: ev.shuffle_questions,
       enable_proctoring: ev.enable_proctoring, show_instant_results: ev.show_instant_results,
-      allow_navigation: ev.allow_navigation, attendee_ids: ''
+      allow_navigation: ev.allow_navigation
     });
     setShowCreate(true);
   };
@@ -178,8 +177,7 @@ export default function EvaluationManagement() {
     try {
       const payload = {
         ...form,
-        passing_percentage: form.passing_percentage ? parseFloat(form.passing_percentage) : null,
-        attendee_ids: form.attendee_ids ? form.attendee_ids.split(',').map(s => s.trim()).filter(Boolean) : []
+        passing_percentage: form.passing_percentage ? parseFloat(form.passing_percentage) : null
       };
       if (editEval) {
         await api.put(`/evaluations/${editEval.eval_id}`, payload);
@@ -275,10 +273,6 @@ export default function EvaluationManagement() {
                   <Label>Passing Percentage (Optional)</Label>
                   <Input type="number" min="0" max="100" step="0.01" value={form.passing_percentage}
                     onChange={e => setForm({...form, passing_percentage: e.target.value})} placeholder="e.g., 50" />
-                </div>
-                <div className="md:col-span-2 space-y-2">
-                  <Label>Attendee IDs (comma-separated, optional)</Label>
-                  <Input value={form.attendee_ids} onChange={e => setForm({...form, attendee_ids: e.target.value})} placeholder="user-id-1, user-id-2" />
                 </div>
               </div>
               <div className="border rounded-lg p-4 space-y-3">
