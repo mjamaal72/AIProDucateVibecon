@@ -256,11 +256,11 @@ export default function ManualCorrection() {
                                 </Badge>
                               )}
                             </div>
-                            <div className="text-sm" dangerouslySetInnerHTML={{ __html: r.question_content_html?.substring(0, 150) + '...' }} />
+                            <div className="text-sm" dangerouslySetInnerHTML={{ __html: r.question_content_html?.substring(0, 150) }} />
                             {r.candidate_response_payload && (
-                              <div className="mt-2 p-2 bg-white border rounded">
+                              <div className="mt-2 p-2 bg-white border rounded text-sm">
                                 <span className="text-xs text-muted-foreground">Student Answer: </span>
-                                <span className="text-sm text-foreground truncate inline-block max-w-full align-bottom">
+                                <span className="text-sm text-foreground truncate block">
                                   {r.candidate_response_payload}
                                 </span>
                               </div>
