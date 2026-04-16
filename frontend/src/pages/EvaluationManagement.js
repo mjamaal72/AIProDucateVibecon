@@ -567,6 +567,7 @@ export default function EvaluationManagement() {
                     <ul className="text-sm text-amber-800 space-y-1 list-disc list-inside">
                       <li>Remove all student attempt records</li>
                       <li>Reset the leaderboard to empty</li>
+                      <li>Unlock the evaluation for editing</li>
                       <li>Allow students to retake the evaluation</li>
                     </ul>
                   </div>

@@ -101,6 +101,7 @@ Remove all student attempts from an evaluation to:
 - **Student Portal:** Students will see the evaluation as available again
 - **Attempt Count:** Resets to 0 used attempts
 - **Questions & Settings:** Remain unchanged
+- **Edit Lock:** Evaluation is **unlocked for editing** (you can now modify questions, settings, etc.)
 
 ---
 

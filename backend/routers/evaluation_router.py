@@ -435,7 +435,7 @@ async def delete_all_attempts(
     current_user: dict = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete all student attempts for a specific evaluation."""
+    """Delete all student attempts for a specific evaluation and unlock it for editing."""
     # Verify evaluation exists
     result = await db.execute(select(Evaluation).where(Evaluation.eval_id == eval_id))
     evaluation = result.scalar_one_or_none()
@@ -446,12 +446,16 @@ async def delete_all_attempts(
     delete_result = await db.execute(
         delete(EvaluationAttempt).where(EvaluationAttempt.eval_id == eval_id)
     )
+    
+    # Unlock the evaluation for editing since there are no more attempts
+    evaluation.is_locked_for_editing = False
+    
     await db.commit()
     
     deleted_count = delete_result.rowcount
     
     return {
-        "message": f"Deleted {deleted_count} attempt(s) from '{evaluation.eval_title}'",
+        "message": f"Deleted {deleted_count} attempt(s) from '{evaluation.eval_title}' and unlocked for editing",
         "deleted_count": deleted_count
     }
 
