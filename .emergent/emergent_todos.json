@@ -13,15 +13,15 @@
   },
   {
     "content": "Phase 2: End-to-end testing with testing agent",
-    "status": "in_progress"
+    "status": "completed"
   },
   {
     "content": "Phase 2: All user stories covered in Development and testing",
-    "status": "pending"
+    "status": "completed"
   },
   {
-    "content": "Phase 3: Scoring, Leaderboard, Item Analysis",
-    "status": "pending"
+    "content": "Phase 3: Polish UX, fix edge cases, improve question authoring flow",
+    "status": "in_progress"
   },
   {
     "content": "Phase 4: Manual Correction & Examiner Allocation",
