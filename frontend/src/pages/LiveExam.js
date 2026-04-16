@@ -29,8 +29,42 @@ export default function LiveExam() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [evalData, setEvalData] = useState(null);
+  const [violations, setViolations] = useState(0);
   const timerRef = useRef(null);
   const startTimeRef = useRef(null);
+
+  // Proctoring: Tab-switch & visibility detection
+  useEffect(() => {
+    if (!attempt || !evalData?.enable_proctoring) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setViolations(v => v + 1);
+        toast.warning('Tab switch detected! This will be reported.');
+        api.post(`/proctoring/${attemptId}/event`, {
+          event_type: 'TAB_SWITCH',
+          description: 'Student switched to another tab'
+        }).catch(() => {});
+      }
+    };
+
+    const handleBlur = () => {
+      setViolations(v => v + 1);
+      toast.warning('Window focus lost! This is being recorded.');
+      api.post(`/proctoring/${attemptId}/event`, {
+        event_type: 'WINDOW_BLUR',
+        description: 'Browser window lost focus'
+      }).catch(() => {});
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, [attempt, evalData, api, attemptId]);
 
   const fetchAttempt = useCallback(async () => {
     try {
@@ -195,6 +229,11 @@ export default function LiveExam() {
             }`}>
               <Clock size={18} />{formatTime(timeLeft)}
             </div>
+            {evalData?.enable_proctoring && violations > 0 && (
+              <Badge className="bg-red-100 text-red-700 border-red-300" data-testid="proctoring-violation-badge">
+                <AlertTriangle size={14} className="mr-1" />{violations} violation{violations > 1 ? 's' : ''}
+              </Badge>
+            )}
             <Progress value={((questions.length - unansweredCount) / questions.length) * 100} className="w-32 hidden sm:block" />
           </div>
         </div>

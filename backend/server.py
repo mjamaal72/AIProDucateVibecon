@@ -18,6 +18,9 @@ from routers.question_router import router as question_router
 from routers.ai_router import router as ai_router
 from routers.attempt_router import router as attempt_router
 from routers.upload_router import router as upload_router
+from routers.correction_router import router as correction_router
+from routers.proctoring_router import router as proctoring_router
+from routers.analytics_router import router as analytics_router
 
 # Include all routers
 app.include_router(auth_router)
@@ -26,6 +29,9 @@ app.include_router(question_router)
 app.include_router(ai_router)
 app.include_router(attempt_router)
 app.include_router(upload_router)
+app.include_router(correction_router)
+app.include_router(proctoring_router)
+app.include_router(analytics_router)
 
 # Health check
 @app.get("/api/health")
@@ -52,11 +58,11 @@ logger = logging.getLogger(__name__)
 @app.on_event("startup")
 async def startup():
     try:
-        from storage import init_storage
-        init_storage()
-        logger.info("Storage initialized")
+        from storage import get_s3_client
+        get_s3_client()
+        logger.info("S3 storage initialized")
     except Exception as e:
-        logger.warning(f"Storage init skipped: {e}")
+        logger.warning(f"S3 init skipped: {e}")
     
     # Ensure password_hash column exists in users table
     try:
