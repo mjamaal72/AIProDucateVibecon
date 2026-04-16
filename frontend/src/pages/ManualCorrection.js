@@ -258,9 +258,11 @@ export default function ManualCorrection() {
                             </div>
                             <div className="text-sm" dangerouslySetInnerHTML={{ __html: r.question_content_html?.substring(0, 150) + '...' }} />
                             {r.candidate_response_payload && (
-                              <div className="mt-2 p-2 bg-white border rounded text-sm">
-                                <span className="text-xs text-muted-foreground block mb-1">Student Answer:</span>
-                                {r.candidate_response_payload.substring(0, 300)}
+                              <div className="mt-2 p-2 bg-white border rounded">
+                                <span className="text-xs text-muted-foreground">Student Answer: </span>
+                                <span className="text-sm text-foreground truncate inline-block max-w-full align-bottom">
+                                  {r.candidate_response_payload}
+                                </span>
                               </div>
                             )}
                             {r.examiner_remarks && (
