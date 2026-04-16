@@ -64,6 +64,7 @@ class Evaluation(Base):
     allow_navigation = Column(Boolean, default=True)
     passing_percentage = Column(DECIMAL(5, 2))
     is_locked_for_editing = Column(Boolean, default=False)
+    is_archived = Column(Boolean, default=False)
     created_by = Column(UUID(as_uuid=True), ForeignKey('users.user_id'))
     created_at = Column(TIMESTAMP(timezone=True), server_default=text("CURRENT_TIMESTAMP"))
     updated_at = Column(TIMESTAMP(timezone=True), server_default=text("CURRENT_TIMESTAMP"))

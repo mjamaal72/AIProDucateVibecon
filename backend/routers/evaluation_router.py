@@ -66,17 +66,17 @@ def serialize_eval(e):
     }
 
 @router.get("")
-async def list_evaluations(current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def list_evaluations(archived: bool = False, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     role = current_user.get('role')
     user_id = current_user.get('sub')
     if role == 'STUDENT':
         # Students see public + invited evaluations
-        public_q = select(Evaluation).where(Evaluation.visibility == 'PUBLIC', Evaluation.is_active == True)
+        public_q = select(Evaluation).where(Evaluation.visibility == 'PUBLIC', Evaluation.is_active == True, Evaluation.is_archived == archived)
         result_pub = await db.execute(public_q)
         public_evals = result_pub.scalars().all()
         
         invited_q = select(Evaluation).join(EvaluationAttendee, Evaluation.eval_id == EvaluationAttendee.eval_id).where(
-            EvaluationAttendee.user_id == user_id, Evaluation.is_active == True
+            EvaluationAttendee.user_id == user_id, Evaluation.is_active == True, Evaluation.is_archived == archived
         )
         result_inv = await db.execute(invited_q)
         invited_evals = result_inv.scalars().all()
@@ -393,3 +393,65 @@ async def list_cohorts(current_user: dict = Depends(get_current_user), db: Async
     result = await db.execute(select(CohortGroup).order_by(CohortGroup.cohort_id))
     cohorts = result.scalars().all()
     return [{"cohort_id": c.cohort_id, "branch_name": c.branch_name, "grade_level": c.grade_level, "section": c.section, "demographic_filter": c.demographic_filter, "description": c.description} for c in cohorts]
+
+
+@router.put("/{eval_id}/archive")
+async def archive_evaluation(
+    eval_id: int,
+    current_user: dict = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Archive an evaluation (hide from main list)."""
+    result = await db.execute(select(Evaluation).where(Evaluation.eval_id == eval_id))
+    evaluation = result.scalar_one_or_none()
+    if not evaluation:
+        raise HTTPException(status_code=404, detail="Evaluation not found")
+    
+    evaluation.is_archived = True
+    await db.commit()
+    
+    return {"message": f"Evaluation '{evaluation.eval_title}' archived"}
+
+@router.put("/{eval_id}/unarchive")
+async def unarchive_evaluation(
+    eval_id: int,
+    current_user: dict = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Restore an archived evaluation."""
+    result = await db.execute(select(Evaluation).where(Evaluation.eval_id == eval_id))
+    evaluation = result.scalar_one_or_none()
+    if not evaluation:
+        raise HTTPException(status_code=404, detail="Evaluation not found")
+    
+    evaluation.is_archived = False
+    await db.commit()
+    
+    return {"message": f"Evaluation '{evaluation.eval_title}' restored"}
+
+@router.delete("/{eval_id}/attempts")
+async def delete_all_attempts(
+    eval_id: int,
+    current_user: dict = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete all student attempts for a specific evaluation."""
+    # Verify evaluation exists
+    result = await db.execute(select(Evaluation).where(Evaluation.eval_id == eval_id))
+    evaluation = result.scalar_one_or_none()
+    if not evaluation:
+        raise HTTPException(status_code=404, detail="Evaluation not found")
+    
+    # Delete all attempts
+    delete_result = await db.execute(
+        delete(EvaluationAttempt).where(EvaluationAttempt.eval_id == eval_id)
+    )
+    await db.commit()
+    
+    deleted_count = delete_result.rowcount
+    
+    return {
+        "message": f"Deleted {deleted_count} attempt(s) from '{evaluation.eval_title}'",
+        "deleted_count": deleted_count
+    }
+
