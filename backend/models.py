@@ -190,3 +190,22 @@ class ProctoringLog(Base):
     event_timestamp = Column(TIMESTAMP(timezone=True), server_default=text("CURRENT_TIMESTAMP"))
     snapshot_url = Column(Text)
     description = Column(Text)
+
+
+class CustomFont(Base):
+    __tablename__ = 'custom_fonts'
+    font_id = Column(Integer, primary_key=True, autoincrement=True)
+    font_name = Column(String(255), unique=True, nullable=False)
+    font_file_url = Column(Text, nullable=False)
+    font_format = Column(String(50), default='truetype')
+    uploaded_by = Column(UUID(as_uuid=True), ForeignKey('users.user_id'))
+    created_at = Column(TIMESTAMP(timezone=True), server_default=text("CURRENT_TIMESTAMP"))
+
+class PreRegisteredAttendee(Base):
+    __tablename__ = 'pre_registered_attendees'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    eval_id = Column(Integer, ForeignKey('evaluations.eval_id', ondelete='CASCADE'))
+    email = Column(String(255), nullable=False)
+    unique_identifier = Column(String(255))
+    added_at = Column(TIMESTAMP(timezone=True), server_default=text("CURRENT_TIMESTAMP"))
+    resolved = Column(Boolean, default=False)

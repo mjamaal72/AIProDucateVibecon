@@ -5,21 +5,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { GraduationCap, LogIn, UserPlus } from 'lucide-react';
 
 export default function LoginPage() {
   const { login, register } = useAuth();
-  const [loginForm, setLoginForm] = useState({ unique_identifier: '', password: '' });
-  const [registerForm, setRegisterForm] = useState({ unique_identifier: '', full_name: '', email: '', password: '', role: 'STUDENT' });
+  const [loginForm, setLoginForm] = useState({ identifier: '', password: '' });
+  const [registerForm, setRegisterForm] = useState({ unique_identifier: '', full_name: '', email: '', password: '' });
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(loginForm.unique_identifier, loginForm.password);
+      await login(loginForm.identifier, loginForm.password);
       toast.success('Welcome back!');
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Login failed');
@@ -97,14 +96,14 @@ export default function LoginPage() {
               <Card className="shadow-lg border-0">
                 <CardHeader>
                   <CardTitle>Welcome Back</CardTitle>
-                  <CardDescription>Sign in to your AIProDucate account</CardDescription>
+                  <CardDescription>Sign in with your Unique ID or Email</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={handleLogin} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="login-id">User ID</Label>
-                      <Input id="login-id" data-testid="login-email-input" placeholder="Enter your unique ID" value={loginForm.unique_identifier}
-                        onChange={e => setLoginForm({...loginForm, unique_identifier: e.target.value})} required />
+                      <Label htmlFor="login-id">Unique ID or Email</Label>
+                      <Input id="login-id" data-testid="login-email-input" placeholder="Enter your ID or Email" value={loginForm.identifier}
+                        onChange={e => setLoginForm({...loginForm, identifier: e.target.value})} required />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="login-password">Password</Label>
@@ -124,7 +123,7 @@ export default function LoginPage() {
               <Card className="shadow-lg border-0">
                 <CardHeader>
                   <CardTitle>Create Account</CardTitle>
-                  <CardDescription>Register for AIProDucate</CardDescription>
+                  <CardDescription>Register as a student. Admins can upgrade your role later.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={handleRegister} className="space-y-4">
@@ -148,17 +147,7 @@ export default function LoginPage() {
                       <Input data-testid="register-password-input" type="password" placeholder="Create a password"
                         value={registerForm.password} onChange={e => setRegisterForm({...registerForm, password: e.target.value})} required />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Role</Label>
-                      <Select value={registerForm.role} onValueChange={v => setRegisterForm({...registerForm, role: v})}>
-                        <SelectTrigger data-testid="register-role-select"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="STUDENT">Student</SelectItem>
-                          <SelectItem value="ADMIN">Admin / Teacher</SelectItem>
-                          <SelectItem value="EXAMINER">Examiner</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <p className="text-xs text-muted-foreground">All accounts start as Student. An Admin can promote your role.</p>
                     <Button type="submit" className="w-full" disabled={loading} data-testid="register-submit-button"
                       style={{ background: 'hsl(210, 52%, 25%)' }}>
                       {loading ? 'Creating...' : 'Create Account'}

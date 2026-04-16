@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Plus, Trash2, FolderOpen, Sparkles, Save, X, GripVertical, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, FolderOpen, Sparkles, Save, X, GripVertical, ChevronDown, ChevronUp, Edit2, AlignLeft, AlignRight, TextCursorInput } from 'lucide-react';
+import { Editor } from '@tinymce/tinymce-react';
 
 const QUESTION_TYPES = [
   { value: 'SINGLE_SELECT', label: 'Single Select', icon: '1' },
@@ -26,7 +27,6 @@ const QUESTION_TYPES = [
   { value: 'FILE_UPLOAD', label: 'File Upload', icon: 'U' },
   { value: 'AUDIO_RECORDING', label: 'Audio Recording', icon: 'A' },
 ];
-
 const PENALTY_TYPES = [
   { value: 'NONE', label: 'None (All or Nothing)' },
   { value: 'A', label: 'Toggle A (Sniper - Any wrong = 0)' },
@@ -53,29 +53,48 @@ export default function QuestionBank() {
     penalty_logic_type: 'NONE', options: []
   });
   const [editQuestion, setEditQuestion] = useState(null);
+  const [direction, setDirection] = useState('ltr');
   const [aiForm, setAiForm] = useState({ context: '', question_type: 'SINGLE_SELECT', count: 5, difficulty: 'medium' });
   const [aiResults, setAiResults] = useState([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSelected, setAiSelected] = useState(new Set());
   const [expandedQ, setExpandedQ] = useState(null);
+  const [customFonts, setCustomFonts] = useState([]);
+  const editorRef = useRef(null);
 
   const fetchEvals = useCallback(async () => {
     try { const res = await api.get('/evaluations'); setEvaluations(res.data); } catch (e) { console.error(e); }
   }, [api]);
-
   const fetchSections = useCallback(async () => {
     if (!selectedEval) return;
     try { const res = await api.get(`/evaluations/${selectedEval}/sections`); setSections(res.data); } catch (e) { console.error(e); }
   }, [api, selectedEval]);
-
   const fetchQuestions = useCallback(async () => {
     if (!selectedEval) return;
     setLoading(true);
     try { const res = await api.get(`/questions/by-eval/${selectedEval}`); setQuestions(res.data); } catch (e) { console.error(e); } finally { setLoading(false); }
   }, [api, selectedEval]);
+  const fetchFonts = useCallback(async () => {
+    try { const res = await api.get('/fonts'); setCustomFonts(res.data); } catch (e) { console.error(e); }
+  }, [api]);
 
-  useEffect(() => { fetchEvals(); }, [fetchEvals]);
+  useEffect(() => { fetchEvals(); fetchFonts(); }, [fetchEvals, fetchFonts]);
   useEffect(() => { if (selectedEval) { fetchSections(); fetchQuestions(); } }, [selectedEval, fetchSections, fetchQuestions]);
+
+  // Inject @font-face CSS
+  useEffect(() => {
+    if (customFonts.length === 0) return;
+    let style = document.getElementById('custom-fonts-style');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'custom-fonts-style';
+      document.head.appendChild(style);
+    }
+    const css = customFonts.map(f =>
+      `@font-face { font-family: '${f.font_name}'; src: url('${f.font_file_url}') format('${f.font_format || 'truetype'}'); font-display: swap; }`
+    ).join('\n');
+    style.textContent = css;
+  }, [customFonts]);
 
   const handleSectionSubmit = async (e) => {
     e.preventDefault();
@@ -103,10 +122,12 @@ export default function QuestionBank() {
       eval_id: parseInt(selectedEval), section_id: sections.length > 0 ? sections[0].section_id : null,
       question_type: 'SINGLE_SELECT', content_html: '', marks: 1, negative_marks: 0,
       time_limit_seconds: null, word_limit: null, penalty_logic_type: 'NONE',
-      options: [{ content_left: '', content_right: '', is_correct: false, display_sequence: 0 },
+      options: [
+        { content_left: '', content_right: '', is_correct: false, display_sequence: 0 },
         { content_left: '', content_right: '', is_correct: false, display_sequence: 1 },
         { content_left: '', content_right: '', is_correct: false, display_sequence: 2 },
-        { content_left: '', content_right: '', is_correct: false, display_sequence: 3 }]
+        { content_left: '', content_right: '', is_correct: false, display_sequence: 3 }
+      ]
     });
     setShowQuestionModal(true);
   };
@@ -126,12 +147,10 @@ export default function QuestionBank() {
   const addOption = () => {
     setQuestionForm({ ...questionForm, options: [...questionForm.options, { content_left: '', content_right: '', is_correct: false, display_sequence: questionForm.options.length }] });
   };
-
   const removeOption = (idx) => {
     const newOpts = questionForm.options.filter((_, i) => i !== idx).map((o, i) => ({ ...o, display_sequence: i }));
     setQuestionForm({ ...questionForm, options: newOpts });
   };
-
   const updateOption = (idx, field, value) => {
     const newOpts = [...questionForm.options];
     newOpts[idx] = { ...newOpts[idx], [field]: value };
@@ -139,6 +158,14 @@ export default function QuestionBank() {
       newOpts.forEach((o, i) => { if (i !== idx) o.is_correct = false; });
     }
     setQuestionForm({ ...questionForm, options: newOpts });
+  };
+
+  const insertBlank = () => {
+    if (editorRef.current) {
+      editorRef.current.insertContent('<span class="fib-blank" contenteditable="false" style="display:inline-block;min-width:80px;border-bottom:2px solid #1e3a5f;padding:2px 4px;margin:0 4px;background:#f0f4ff;">_blank_</span>');
+    } else {
+      setQuestionForm({ ...questionForm, content_html: questionForm.content_html + ' _blank_ ' });
+    }
   };
 
   const handleQuestionSubmit = async (e) => {
@@ -184,14 +211,11 @@ export default function QuestionBank() {
         section_id: sections.length > 0 ? sections[0].section_id : null,
         question_type: q.question_type || 'SINGLE_SELECT',
         content_html: q.content_html || q.content || '',
-        marks: q.marks || 1,
-        negative_marks: q.negative_marks || 0,
+        marks: q.marks || 1, negative_marks: q.negative_marks || 0,
         penalty_logic_type: q.penalty_logic_type || 'NONE',
         options: (q.options || []).map((o, i) => ({
-          content_left: o.content_left || o.text || '',
-          content_right: o.content_right || '',
-          is_correct: o.is_correct || false,
-          display_sequence: o.display_sequence || i
+          content_left: o.content_left || o.text || '', content_right: o.content_right || '',
+          is_correct: o.is_correct || false, display_sequence: o.display_sequence || i
         }))
       }));
       await api.post('/questions/bulk', payload);
@@ -203,19 +227,31 @@ export default function QuestionBank() {
   const getTypeLabel = (t) => QUESTION_TYPES.find(q => q.value === t)?.label || t;
   const getTypeIcon = (t) => QUESTION_TYPES.find(q => q.value === t)?.icon || '?';
 
+  // TinyMCE configuration with custom fonts
+  const editorFonts = [
+    'Arial=arial,helvetica,sans-serif',
+    'Georgia=georgia,palatino',
+    'Times New Roman=times new roman,times',
+    'Courier New=courier new,courier',
+    'Verdana=verdana,geneva',
+    ...customFonts.map(f => `${f.font_name}=${f.font_name}`)
+  ].join(';');
+
+  const fontFaceCss = customFonts.map(f =>
+    `@font-face { font-family: '${f.font_name}'; src: url('${f.font_file_url}'); font-display: swap; }`
+  ).join('\n');
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk', color: 'hsl(210, 52%, 25%)' }}>Question Bank</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage sections and create questions</p>
+          <p className="text-sm text-muted-foreground mt-1">Manage sections and create questions with rich text</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Select value={selectedEval} onValueChange={setSelectedEval}>
-            <SelectTrigger className="w-[250px]"><SelectValue placeholder="Select Evaluation" /></SelectTrigger>
-            <SelectContent>{evaluations.map(e => <SelectItem key={e.eval_id} value={String(e.eval_id)}>{e.eval_title}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
+        <Select value={selectedEval} onValueChange={setSelectedEval}>
+          <SelectTrigger className="w-[250px]"><SelectValue placeholder="Select Evaluation" /></SelectTrigger>
+          <SelectContent>{evaluations.map(e => <SelectItem key={e.eval_id} value={String(e.eval_id)}>{e.eval_title}</SelectItem>)}</SelectContent>
+        </Select>
       </div>
 
       {selectedEval && (
@@ -263,7 +299,7 @@ export default function QuestionBank() {
                     {getTypeIcon(q.question_type)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="text-sm font-medium">Q{idx + 1}</span>
                       <Badge variant="outline" className="text-xs">{getTypeLabel(q.question_type)}</Badge>
                       <Badge className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">{q.marks} marks</Badge>
@@ -286,7 +322,7 @@ export default function QuestionBank() {
                     <Button size="sm" variant="ghost" onClick={() => setExpandedQ(expandedQ === q.question_id ? null : q.question_id)}>
                       {expandedQ === q.question_id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => openEditQuestion(q)}><Edit size={16} /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => openEditQuestion(q)}><Edit2 size={16} /></Button>
                     <Button size="sm" variant="ghost" className="text-destructive" onClick={() => deleteQuestion(q.question_id)}><Trash2 size={16} /></Button>
                   </div>
                 </div>
@@ -306,7 +342,7 @@ export default function QuestionBank() {
               <div className="space-y-2"><Label>Question Count Limit</Label><Input type="number" min="0" value={sectionForm.target_question_count} onChange={e => setSectionForm({...sectionForm, target_question_count: parseInt(e.target.value) || 0})} /></div>
               <div className="space-y-2"><Label>Max Marks Limit</Label><Input type="number" min="0" step="0.01" value={sectionForm.target_total_marks} onChange={e => setSectionForm({...sectionForm, target_total_marks: parseFloat(e.target.value) || 0})} /></div>
             </div>
-            <div className="space-y-2"><Label>Instructions (Optional)</Label><Textarea value={sectionForm.instructions} onChange={e => setSectionForm({...sectionForm, instructions: e.target.value})} /></div>
+            <div className="space-y-2"><Label>Instructions</Label><Textarea value={sectionForm.instructions} onChange={e => setSectionForm({...sectionForm, instructions: e.target.value})} /></div>
             <div className="flex justify-between">
               {editSection && <Button type="button" variant="destructive" size="sm" onClick={() => { deleteSection(editSection.section_id); setShowSectionModal(false); }}>Delete</Button>}
               <div className="flex gap-2 ml-auto"><Button type="button" variant="outline" onClick={() => setShowSectionModal(false)}>Cancel</Button><Button type="submit" style={{ background: 'hsl(210, 52%, 25%)' }}>Save</Button></div>
@@ -316,9 +352,9 @@ export default function QuestionBank() {
         </DialogContent>
       </Dialog>
 
-      {/* Question Modal */}
+      {/* Question Modal with TinyMCE */}
       <Dialog open={showQuestionModal} onOpenChange={setShowQuestionModal}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle data-testid="question-type-select">{editQuestion ? 'Edit Question' : 'Create Question'}</DialogTitle></DialogHeader>
           <form onSubmit={handleQuestionSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -337,10 +373,51 @@ export default function QuestionBank() {
                 </Select>
               </div>
             </div>
+
+            {/* Rich Text Editor with RTL/LTR + Insert Blank */}
             <div className="space-y-2">
-              <Label>Question Content (HTML)</Label>
-              <Textarea value={questionForm.content_html} onChange={e => setQuestionForm({...questionForm, content_html: e.target.value})} rows={4} placeholder="<p>Enter your question here...</p>" required />
+              <div className="flex items-center justify-between">
+                <Label>Question Content (Rich Text)</Label>
+                <div className="flex items-center gap-2">
+                  {questionForm.question_type === 'FILL_BLANK' && (
+                    <Button type="button" size="sm" variant="outline" onClick={insertBlank} className="text-blue-600 border-blue-200">
+                      <TextCursorInput size={14} className="mr-1" />Insert Blank
+                    </Button>
+                  )}
+                  <Button type="button" size="sm" variant={direction === 'ltr' ? 'default' : 'outline'} onClick={() => setDirection('ltr')} className={direction === 'ltr' ? '' : ''}>
+                    <AlignLeft size={14} className="mr-1" />LTR
+                  </Button>
+                  <Button type="button" size="sm" variant={direction === 'rtl' ? 'default' : 'outline'} onClick={() => setDirection('rtl')}>
+                    <AlignRight size={14} className="mr-1" />RTL
+                  </Button>
+                </div>
+              </div>
+              <Editor
+                onInit={(evt, editor) => { editorRef.current = editor; }}
+                value={questionForm.content_html}
+                onEditorChange={(content) => setQuestionForm({...questionForm, content_html: content})}
+                init={{
+                  license_key: 'gpl',
+                  height: 250,
+                  menubar: true,
+                  directionality: direction,
+                  plugins: 'advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table help wordcount directionality',
+                  toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | ltr rtl | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image | forecolor backcolor removeformat | charmap | help',
+                  font_family_formats: editorFonts,
+                  content_style: `${fontFaceCss}\nbody { font-family: Inter, Arial, sans-serif; font-size: 14px; direction: ${direction}; }`,
+                  setup: (editor) => {
+                    editor.ui.registry.addButton('insertblank', {
+                      text: 'Insert Blank',
+                      onAction: () => {
+                        editor.insertContent('<span class="fib-blank" contenteditable="false" style="display:inline-block;min-width:80px;border-bottom:2px solid #1e3a5f;padding:2px 4px;margin:0 4px;background:#f0f4ff;">_blank_</span>');
+                      }
+                    });
+                  }
+                }}
+                tinymceScriptSrc="/tinymce/tinymce.min.js"
+              />
             </div>
+
             <div className="grid grid-cols-4 gap-4">
               <div className="space-y-2"><Label>Marks</Label><Input type="number" step="0.01" min="0" value={questionForm.marks} onChange={e => setQuestionForm({...questionForm, marks: parseFloat(e.target.value) || 0})} /></div>
               <div className="space-y-2"><Label>Negative Marks</Label><Input type="number" step="0.01" min="0" value={questionForm.negative_marks} onChange={e => setQuestionForm({...questionForm, negative_marks: parseFloat(e.target.value) || 0})} /></div>
@@ -353,21 +430,22 @@ export default function QuestionBank() {
                 </Select>
               </div>
             </div>
+
             {/* Options */}
             {['SINGLE_SELECT', 'MULTIPLE_SELECT', 'FILL_BLANK', 'MATCHING', 'SEQUENCING', 'TOGGLE_BINARY'].includes(questionForm.question_type) && (
               <div className="space-y-3 border rounded-lg p-4">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm font-semibold">Options</Label>
+                  <Label className="text-sm font-semibold">Options {direction === 'rtl' && <span className="text-xs text-muted-foreground">(RTL aligned)</span>}</Label>
                   <Button type="button" size="sm" variant="outline" onClick={addOption}><Plus size={14} className="mr-1" />Add Option</Button>
                 </div>
                 {questionForm.options.map((opt, idx) => (
-                  <div key={idx} className="flex items-center gap-2 p-2 border rounded-md bg-muted/30">
+                  <div key={idx} className="flex items-center gap-2 p-2 border rounded-md bg-muted/30" dir={direction}>
                     <GripVertical size={14} className="text-muted-foreground flex-shrink-0" />
                     <Input className="flex-1" placeholder={questionForm.question_type === 'TOGGLE_BINARY' ? 'Statement text' : 'Option text'}
-                      value={opt.content_left || ''} onChange={e => updateOption(idx, 'content_left', e.target.value)} />
+                      value={opt.content_left || ''} onChange={e => updateOption(idx, 'content_left', e.target.value)} dir={direction} />
                     {questionForm.question_type === 'MATCHING' && (
                       <Input className="flex-1" placeholder="Match with..."
-                        value={opt.content_right || ''} onChange={e => updateOption(idx, 'content_right', e.target.value)} />
+                        value={opt.content_right || ''} onChange={e => updateOption(idx, 'content_right', e.target.value)} dir={direction} />
                     )}
                     <div className="flex items-center gap-1.5">
                       <Switch checked={opt.is_correct} onCheckedChange={v => updateOption(idx, 'is_correct', v)} />
@@ -393,36 +471,27 @@ export default function QuestionBank() {
       <Dialog open={showAIModal} onOpenChange={setShowAIModal}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle><Sparkles size={20} className="inline mr-2 text-purple-600" />AI Question Generator</DialogTitle></DialogHeader>
-          <Tabs defaultValue="prompt">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="prompt">Custom Prompt</TabsTrigger>
-              <TabsTrigger value="upload">Upload File</TabsTrigger>
-            </TabsList>
-            <TabsContent value="prompt" className="space-y-4">
-              <div className="space-y-2"><Label>Context / Topic</Label><Textarea value={aiForm.context} onChange={e => setAiForm({...aiForm, context: e.target.value})} rows={5} placeholder="Enter the topic or content you want questions generated from..." /></div>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2"><Label>Question Type</Label>
-                  <Select value={aiForm.question_type} onValueChange={v => setAiForm({...aiForm, question_type: v})}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{QUESTION_TYPES.slice(0, 6).map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2"><Label>Count</Label><Input type="number" min="1" max="20" value={aiForm.count} onChange={e => setAiForm({...aiForm, count: parseInt(e.target.value) || 5})} /></div>
-                <div className="space-y-2"><Label>Difficulty</Label>
-                  <Select value={aiForm.difficulty} onValueChange={v => setAiForm({...aiForm, difficulty: v})}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="easy">Easy</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="hard">Hard</SelectItem></SelectContent>
-                  </Select>
-                </div>
+          <div className="space-y-4">
+            <div className="space-y-2"><Label>Context / Topic</Label><Textarea value={aiForm.context} onChange={e => setAiForm({...aiForm, context: e.target.value})} rows={5} placeholder="Enter the topic or content..." /></div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2"><Label>Question Type</Label>
+                <Select value={aiForm.question_type} onValueChange={v => setAiForm({...aiForm, question_type: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{QUESTION_TYPES.slice(0, 6).map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                </Select>
               </div>
-              <Button onClick={handleAIGenerate} disabled={aiLoading} className="w-full" style={{ background: 'hsl(270, 60%, 50%)' }}>
-                {aiLoading ? 'Generating...' : <><Sparkles size={16} className="mr-2" />Generate Questions</>}
-              </Button>
-            </TabsContent>
-            <TabsContent value="upload">
-              <p className="text-sm text-muted-foreground text-center py-8">Upload a .txt or .docx file and AI will generate questions from it. (Coming in file upload integration)</p>
-            </TabsContent>
-          </Tabs>
+              <div className="space-y-2"><Label>Count</Label><Input type="number" min="1" max="20" value={aiForm.count} onChange={e => setAiForm({...aiForm, count: parseInt(e.target.value) || 5})} /></div>
+              <div className="space-y-2"><Label>Difficulty</Label>
+                <Select value={aiForm.difficulty} onValueChange={v => setAiForm({...aiForm, difficulty: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="easy">Easy</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="hard">Hard</SelectItem></SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button onClick={handleAIGenerate} disabled={aiLoading} className="w-full" style={{ background: 'hsl(270, 60%, 50%)' }}>
+              {aiLoading ? 'Generating...' : <><Sparkles size={16} className="mr-2" />Generate Questions</>}
+            </Button>
+          </div>
           {aiResults.length > 0 && (
             <div className="border-t pt-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -454,5 +523,3 @@ export default function QuestionBank() {
     </div>
   );
 }
-
-const Edit = ({ size }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg>);

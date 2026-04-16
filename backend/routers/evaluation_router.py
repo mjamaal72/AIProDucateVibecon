@@ -4,7 +4,7 @@ from typing import Optional, List
 from sqlalchemy import select, update, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
-from models import Evaluation, EvaluationAttendee, EvaluationSection, EvaluationAttempt, User, CohortGroup, UserCohortMembership
+from models import Evaluation, EvaluationAttendee, EvaluationSection, EvaluationAttempt, User, CohortGroup, UserCohortMembership, PreRegisteredAttendee
 from auth import get_current_user, require_admin
 from datetime import datetime, timezone
 import logging
@@ -225,6 +225,92 @@ async def add_attendees(eval_id: int, attendee_ids: List[str], current_user: dic
             db.add(EvaluationAttendee(eval_id=eval_id, user_id=uid))
     await db.commit()
     return {"message": f"Added {len(attendee_ids)} attendees"}
+
+class BulkAttendeeRequest(BaseModel):
+    identifiers: str  # Comma or newline separated unique_identifiers or emails
+
+@router.post("/{eval_id}/attendees/bulk")
+async def add_attendees_bulk(eval_id: int, req: BulkAttendeeRequest, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Add attendees by bulk entry of IDs/emails. Supports pre-registration for unregistered users."""
+    import re
+    raw = req.identifiers.replace('\r\n', '\n').replace('\r', '\n')
+    identifiers = [s.strip() for s in re.split(r'[,\n\t]+', raw) if s.strip()]
+    
+    added = 0
+    pre_registered = 0
+    already_added = 0
+    not_found = []
+    
+    for ident in identifiers:
+        # Try to find user by unique_identifier or email
+        result = await db.execute(
+            select(User).where(
+                (User.unique_identifier == ident) | (User.email == ident)
+            )
+        )
+        user = result.scalar_one_or_none()
+        
+        if user:
+            existing = await db.execute(select(EvaluationAttendee).where(
+                EvaluationAttendee.eval_id == eval_id, EvaluationAttendee.user_id == user.user_id
+            ))
+            if not existing.scalar_one_or_none():
+                db.add(EvaluationAttendee(eval_id=eval_id, user_id=user.user_id))
+                added += 1
+            else:
+                already_added += 1
+        else:
+            # Pre-register: store for future resolution
+            is_email = '@' in ident
+            existing_pr = await db.execute(select(PreRegisteredAttendee).where(
+                PreRegisteredAttendee.eval_id == eval_id,
+                (PreRegisteredAttendee.email == ident) | (PreRegisteredAttendee.unique_identifier == ident)
+            ))
+            if not existing_pr.scalar_one_or_none():
+                db.add(PreRegisteredAttendee(
+                    eval_id=eval_id,
+                    email=ident if is_email else '',
+                    unique_identifier=ident if not is_email else ''
+                ))
+                pre_registered += 1
+            not_found.append(ident)
+    
+    await db.commit()
+    return {
+        "message": f"Added {added} attendees, {pre_registered} pre-registered, {already_added} already added",
+        "added": added,
+        "pre_registered": pre_registered,
+        "already_added": already_added,
+        "not_found": not_found
+    }
+
+@router.post("/{eval_id}/attendees/cohort/{cohort_id}")
+async def add_cohort_attendees(eval_id: int, cohort_id: int, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Add all members of a cohort as attendees."""
+    result = await db.execute(select(UserCohortMembership.user_id).where(UserCohortMembership.cohort_id == cohort_id))
+    user_ids = [str(row[0]) for row in result]
+    added = 0
+    for uid in user_ids:
+        existing = await db.execute(select(EvaluationAttendee).where(
+            EvaluationAttendee.eval_id == eval_id, EvaluationAttendee.user_id == uid
+        ))
+        if not existing.scalar_one_or_none():
+            db.add(EvaluationAttendee(eval_id=eval_id, user_id=uid, added_via_cohort_id=cohort_id))
+            added += 1
+    await db.commit()
+    return {"message": f"Added {added} attendees from cohort", "added": added}
+
+@router.delete("/{eval_id}/attendees/{user_id}")
+async def remove_attendee(eval_id: int, user_id: str, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(EvaluationAttendee).where(
+        EvaluationAttendee.eval_id == eval_id, EvaluationAttendee.user_id == user_id
+    ))
+    att = result.scalar_one_or_none()
+    if not att:
+        raise HTTPException(status_code=404, detail="Attendee not found")
+    await db.delete(att)
+    await db.commit()
+    return {"message": "Attendee removed"}
 
 # Section endpoints
 @router.get("/{eval_id}/sections")

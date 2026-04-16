@@ -28,8 +28,8 @@ export function AuthProvider({ children }) {
     }
   }, [token, api]);
 
-  const login = async (unique_identifier, password) => {
-    const res = await axios.post(`${API}/auth/login`, { unique_identifier, password });
+  const login = async (identifier, password) => {
+    const res = await axios.post(`${API}/auth/login`, { identifier, password });
     setToken(res.data.token);
     setUser(res.data.user);
     localStorage.setItem('aiproducate_token', res.data.token);

@@ -1,26 +1,30 @@
 [
   {
-    "content": "Switch storage to S3 (now working)",
-    "status": "completed"
+    "content": "Auth: Remove role selection, default STUDENT, login via ID or Email, admin user promotion",
+    "status": "in_progress"
   },
   {
-    "content": "Phase 3: Item Analysis backend + frontend",
-    "status": "completed"
+    "content": "Evaluation: Enhanced attendee management (bulk entry, user/group dropdown, pre-registration, Excel import)",
+    "status": "pending"
   },
   {
-    "content": "Phase 4: Manual Correction - allocation, round-robin, workload transfer, grading UI",
-    "status": "completed"
+    "content": "Question Bank: TinyMCE rich text editor with RTL/LTR toggle",
+    "status": "pending"
   },
   {
-    "content": "Phase 5: Proctoring - tab-switch detection, event logging, violation counter",
-    "status": "completed"
+    "content": "Custom Font System: Admin upload, register, @font-face injection, TinyMCE integration",
+    "status": "pending"
   },
   {
-    "content": "Final end-to-end testing: 100% pass rate (34/34 backend, all frontend)",
-    "status": "completed"
+    "content": "Fill in Blanks: _blank_ to input field conversion, Insert Blank button in editor",
+    "status": "pending"
   },
   {
-    "content": "Awaiting user rectifications and modifications",
+    "content": "Penalty & Formatting: Option cleaning toggles, bracket removal",
+    "status": "pending"
+  },
+  {
+    "content": "Testing all modifications",
     "status": "pending"
   }
 ]
