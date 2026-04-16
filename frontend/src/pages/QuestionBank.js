@@ -66,6 +66,8 @@ export default function QuestionBank() {
   const [aiSelected, setAiSelected] = useState(new Set());
   const [expandedQ, setExpandedQ] = useState(null);
   const [customFonts, setCustomFonts] = useState([]);
+  const [selectedFont, setSelectedFont] = useState('Inter');
+  const [aiFile, setAiFile] = useState(null);
   
   // Tiptap editor
   const editor = useEditor({
@@ -203,6 +205,24 @@ export default function QuestionBank() {
       editor.chain().focus().insertContent(' _blank_ ').run();
     } else {
       setQuestionForm({ ...questionForm, content_html: questionForm.content_html + ' _blank_ ' });
+    }
+  };
+
+  // Font families for dropdown
+  const fontFamilies = useMemo(() => [
+    { label: 'Inter', value: 'Inter' },
+    { label: 'Arial', value: 'Arial' },
+    { label: 'Georgia', value: 'Georgia' },
+    { label: 'Times New Roman', value: 'Times New Roman' },
+    { label: 'Courier New', value: 'Courier New' },
+    { label: 'Verdana', value: 'Verdana' },
+    ...customFonts.map(f => ({ label: f.font_name, value: f.font_name }))
+  ], [customFonts]);
+
+  const applyFont = (font) => {
+    if (editor) {
+      editor.chain().focus().setFontFamily(font).run();
+      setSelectedFont(font);
     }
   };
 
@@ -418,7 +438,20 @@ export default function QuestionBank() {
               </div>
               {/* Toolbar */}
               {editor && (
-                <div className="border rounded-md p-2 flex flex-wrap gap-1" style={{ background: '#f5f5f5' }}>
+                <div className="border rounded-md p-2 flex flex-wrap gap-1 items-center" style={{ background: '#f5f5f5' }}>
+                  <Select value={selectedFont} onValueChange={applyFont}>
+                    <SelectTrigger className="w-[180px] h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {fontFamilies.map(font => (
+                        <SelectItem key={font.value} value={font.value} style={{ fontFamily: font.value }}>
+                          {font.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="w-px h-6 bg-gray-300 mx-1" />
                   <Button type="button" size="sm" variant={editor.isActive('bold') ? 'default' : 'outline'} onClick={() => editor.chain().focus().toggleBold().run()}>
                     <Bold size={16} />
                   </Button>
@@ -501,7 +534,22 @@ export default function QuestionBank() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle><Sparkles size={20} className="inline mr-2 text-purple-600" />AI Question Generator</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2"><Label>Context / Topic</Label><Textarea value={aiForm.context} onChange={e => setAiForm({...aiForm, context: e.target.value})} rows={5} placeholder="Enter the topic or content..." /></div>
+            <Tabs defaultValue="text" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="text">Text Input</TabsTrigger>
+                <TabsTrigger value="file">File Upload</TabsTrigger>
+              </TabsList>
+              <TabsContent value="text" className="space-y-4 pt-4">
+                <div className="space-y-2"><Label>Context / Topic</Label><Textarea value={aiForm.context} onChange={e => setAiForm({...aiForm, context: e.target.value})} rows={5} placeholder="Enter the topic or content..." /></div>
+              </TabsContent>
+              <TabsContent value="file" className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label>Upload Document</Label>
+                  <Input type="file" accept=".txt,.pdf,.doc,.docx" onChange={e => setAiFile(e.target.files[0])} />
+                  {aiFile && <p className="text-xs text-muted-foreground">Selected: {aiFile.name}</p>}
+                </div>
+              </TabsContent>
+            </Tabs>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2"><Label>Question Type</Label>
                 <Select value={aiForm.question_type} onValueChange={v => setAiForm({...aiForm, question_type: v})}>
