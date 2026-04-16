@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,8 +13,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Plus, Trash2, FolderOpen, Sparkles, Save, X, GripVertical, ChevronDown, ChevronUp, Edit2, AlignLeft, AlignRight, TextCursorInput } from 'lucide-react';
-import { Editor } from '@tinymce/tinymce-react';
+import { Plus, Trash2, FolderOpen, Sparkles, Save, X, GripVertical, ChevronDown, ChevronUp, Edit2, AlignLeft, AlignRight, TextCursorInput, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered } from 'lucide-react';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import TextAlign from '@tiptap/extension-text-align';
+import { TextStyle } from '@tiptap/extension-text-style';
+import { Color } from '@tiptap/extension-color';
+import { FontFamily } from '@tiptap/extension-font-family';
+import UnderlineExt from '@tiptap/extension-underline';
 
 const QUESTION_TYPES = [
   { value: 'SINGLE_SELECT', label: 'Single Select', icon: '1' },
@@ -60,7 +66,29 @@ export default function QuestionBank() {
   const [aiSelected, setAiSelected] = useState(new Set());
   const [expandedQ, setExpandedQ] = useState(null);
   const [customFonts, setCustomFonts] = useState([]);
-  const editorRef = useRef(null);
+  
+  // Tiptap editor
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      UnderlineExt,
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      TextStyle,
+      Color,
+      FontFamily
+    ],
+    content: questionForm.content_html,
+    onUpdate: ({ editor }) => {
+      setQuestionForm(prev => ({ ...prev, content_html: editor.getHTML() }));
+    }
+  });
+
+  // Update editor content when questionForm changes externally
+  useEffect(() => {
+    if (editor && questionForm.content_html !== editor.getHTML()) {
+      editor.commands.setContent(questionForm.content_html);
+    }
+  }, [questionForm.content_html, editor]);
 
   const fetchEvals = useCallback(async () => {
     try { const res = await api.get('/evaluations'); setEvaluations(res.data); } catch (e) { console.error(e); }
@@ -81,19 +109,29 @@ export default function QuestionBank() {
   useEffect(() => { fetchEvals(); fetchFonts(); }, [fetchEvals, fetchFonts]);
   useEffect(() => { if (selectedEval) { fetchSections(); fetchQuestions(); } }, [selectedEval, fetchSections, fetchQuestions]);
 
-  // Inject @font-face CSS
+  // Inject @font-face CSS and Tiptap styles
   useEffect(() => {
-    if (customFonts.length === 0) return;
     let style = document.getElementById('custom-fonts-style');
     if (!style) {
       style = document.createElement('style');
       style.id = 'custom-fonts-style';
       document.head.appendChild(style);
     }
-    const css = customFonts.map(f =>
+    
+    const fontCss = customFonts.map(f =>
       `@font-face { font-family: '${f.font_name}'; src: url('${f.font_file_url}') format('${f.font_format || 'truetype'}'); font-display: swap; }`
     ).join('\n');
-    style.textContent = css;
+    
+    const tiptapCustomCss = `
+      .ProseMirror { min-height: 200px; outline: none; padding: 8px; }
+      .ProseMirror p { margin: 0.5em 0; }
+      .ProseMirror ul, .ProseMirror ol { padding-left: 1.5em; }
+      .ProseMirror h1 { font-size: 2em; font-weight: bold; }
+      .ProseMirror h2 { font-size: 1.5em; font-weight: bold; }
+      .ProseMirror h3 { font-size: 1.17em; font-weight: bold; }
+    `;
+    
+    style.textContent = fontCss + '\n' + tiptapCustomCss;
   }, [customFonts]);
 
   const handleSectionSubmit = async (e) => {
@@ -161,8 +199,8 @@ export default function QuestionBank() {
   };
 
   const insertBlank = () => {
-    if (editorRef.current) {
-      editorRef.current.insertContent('<span class="fib-blank" contenteditable="false" style="display:inline-block;min-width:80px;border-bottom:2px solid #1e3a5f;padding:2px 4px;margin:0 4px;background:#f0f4ff;">_blank_</span>');
+    if (editor) {
+      editor.chain().focus().insertContent(' _blank_ ').run();
     } else {
       setQuestionForm({ ...questionForm, content_html: questionForm.content_html + ' _blank_ ' });
     }
@@ -226,20 +264,6 @@ export default function QuestionBank() {
 
   const getTypeLabel = (t) => QUESTION_TYPES.find(q => q.value === t)?.label || t;
   const getTypeIcon = (t) => QUESTION_TYPES.find(q => q.value === t)?.icon || '?';
-
-  // TinyMCE configuration with custom fonts
-  const editorFonts = [
-    'Arial=arial,helvetica,sans-serif',
-    'Georgia=georgia,palatino',
-    'Times New Roman=times new roman,times',
-    'Courier New=courier new,courier',
-    'Verdana=verdana,geneva',
-    ...customFonts.map(f => `${f.font_name}=${f.font_name}`)
-  ].join(';');
-
-  const fontFaceCss = customFonts.map(f =>
-    `@font-face { font-family: '${f.font_name}'; src: url('${f.font_file_url}'); font-display: swap; }`
-  ).join('\n');
 
   return (
     <div className="space-y-6">
@@ -384,7 +408,7 @@ export default function QuestionBank() {
                       <TextCursorInput size={14} className="mr-1" />Insert Blank
                     </Button>
                   )}
-                  <Button type="button" size="sm" variant={direction === 'ltr' ? 'default' : 'outline'} onClick={() => setDirection('ltr')} className={direction === 'ltr' ? '' : ''}>
+                  <Button type="button" size="sm" variant={direction === 'ltr' ? 'default' : 'outline'} onClick={() => setDirection('ltr')}>
                     <AlignLeft size={14} className="mr-1" />LTR
                   </Button>
                   <Button type="button" size="sm" variant={direction === 'rtl' ? 'default' : 'outline'} onClick={() => setDirection('rtl')}>
@@ -392,29 +416,35 @@ export default function QuestionBank() {
                   </Button>
                 </div>
               </div>
-              <Editor
-                onInit={(evt, editor) => { editorRef.current = editor; }}
-                value={questionForm.content_html}
-                onEditorChange={(content) => setQuestionForm({...questionForm, content_html: content})}
-                init={{
-                  license_key: 'gpl',
-                  height: 250,
-                  menubar: true,
-                  directionality: direction,
-                  plugins: 'advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table help wordcount directionality',
-                  toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | ltr rtl | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image | forecolor backcolor removeformat | charmap | help',
-                  font_family_formats: editorFonts,
-                  content_style: `${fontFaceCss}\nbody { font-family: Inter, Arial, sans-serif; font-size: 14px; direction: ${direction}; }`,
-                  setup: (editor) => {
-                    editor.ui.registry.addButton('insertblank', {
-                      text: 'Insert Blank',
-                      onAction: () => {
-                        editor.insertContent('<span class="fib-blank" contenteditable="false" style="display:inline-block;min-width:80px;border-bottom:2px solid #1e3a5f;padding:2px 4px;margin:0 4px;background:#f0f4ff;">_blank_</span>');
-                      }
-                    });
-                  }
-                }}
-              />
+              {/* Toolbar */}
+              {editor && (
+                <div className="border rounded-md p-2 flex flex-wrap gap-1" style={{ background: '#f5f5f5' }}>
+                  <Button type="button" size="sm" variant={editor.isActive('bold') ? 'default' : 'outline'} onClick={() => editor.chain().focus().toggleBold().run()}>
+                    <Bold size={16} />
+                  </Button>
+                  <Button type="button" size="sm" variant={editor.isActive('italic') ? 'default' : 'outline'} onClick={() => editor.chain().focus().toggleItalic().run()}>
+                    <Italic size={16} />
+                  </Button>
+                  <Button type="button" size="sm" variant={editor.isActive('underline') ? 'default' : 'outline'} onClick={() => editor.chain().focus().toggleUnderline().run()}>
+                    <UnderlineIcon size={16} />
+                  </Button>
+                  <div className="w-px h-6 bg-gray-300 mx-1" />
+                  <Button type="button" size="sm" variant={editor.isActive('bulletList') ? 'default' : 'outline'} onClick={() => editor.chain().focus().toggleBulletList().run()}>
+                    <List size={16} />
+                  </Button>
+                  <Button type="button" size="sm" variant={editor.isActive('orderedList') ? 'default' : 'outline'} onClick={() => editor.chain().focus().toggleOrderedList().run()}>
+                    <ListOrdered size={16} />
+                  </Button>
+                  <div className="w-px h-6 bg-gray-300 mx-1" />
+                  <Button type="button" size="sm" variant={editor.isActive({ textAlign: 'left' }) ? 'default' : 'outline'} onClick={() => editor.chain().focus().setTextAlign('left').run()}>Left</Button>
+                  <Button type="button" size="sm" variant={editor.isActive({ textAlign: 'center' }) ? 'default' : 'outline'} onClick={() => editor.chain().focus().setTextAlign('center').run()}>Center</Button>
+                  <Button type="button" size="sm" variant={editor.isActive({ textAlign: 'right' }) ? 'default' : 'outline'} onClick={() => editor.chain().focus().setTextAlign('right').run()}>Right</Button>
+                </div>
+              )}
+              {/* Editor */}
+              <div dir={direction} className="border rounded-md p-3 min-h-[250px] bg-white" style={{ direction: direction }}>
+                <EditorContent editor={editor} />
+              </div>
             </div>
 
             <div className="grid grid-cols-4 gap-4">
