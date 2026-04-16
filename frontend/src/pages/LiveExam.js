@@ -26,8 +26,12 @@ function FillBlankQuestion({ content, options, currentAnswer, onChange }) {
     const elements = [];
     
     parts.forEach((part, idx) => {
-      elements.push(<span key={`text-${idx}`} dangerouslySetInnerHTML={{ __html: part }} />);
+      // Add the text part
+      if (part) {
+        elements.push(<span key={`text-${idx}`} dangerouslySetInnerHTML={{ __html: part }} />);
+      }
       
+      // Add drop zone after each part except the last
       if (idx < parts.length - 1) {
         const blankId = idx;
         const filledValue = answer[blankId];
@@ -35,10 +39,14 @@ function FillBlankQuestion({ content, options, currentAnswer, onChange }) {
         elements.push(
           <span
             key={`blank-${idx}`}
-            className={`inline-block min-w-[120px] px-3 py-2 mx-1 border-2 rounded ${
+            className={`inline-flex items-center justify-center min-w-[120px] px-3 py-1 mx-1 border-2 rounded ${
               filledValue ? 'bg-blue-50 border-blue-400' : 'bg-gray-50 border-dashed border-gray-400'
             }`}
-            style={{ minHeight: '40px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ 
+              minHeight: '32px',
+              verticalAlign: 'middle',
+              cursor: filledValue ? 'pointer' : 'default'
+            }}
             onDrop={(e) => {
               e.preventDefault();
               if (draggedOption) {
@@ -59,14 +67,14 @@ function FillBlankQuestion({ content, options, currentAnswer, onChange }) {
             {filledValue ? (
               <span className="font-medium text-blue-700">{filledValue}</span>
             ) : (
-              <span className="text-gray-400 text-sm">Drop here</span>
+              <span className="text-gray-400 text-xs">Drop here</span>
             )}
           </span>
         );
       }
     });
     
-    return <div className="prose prose-sm max-w-none mb-6 text-lg leading-relaxed">{elements}</div>;
+    return <div className="prose prose-sm max-w-none mb-6 text-lg leading-relaxed" style={{ display: 'inline' }}>{elements}</div>;
   };
   
   // Get available options (not text-based, only correct options or all options)
@@ -350,7 +358,7 @@ export default function LiveExam() {
                       content={currentQ.content_html}
                       options={currentQ.options}
                       currentAnswer={answers[currentQ.question_id]}
-                      onChange={v => handleAnswerChange(currentQ.question_id, v)}
+                      onChange={v => handleAnswer(currentQ.question_id, v)}
                     />
                   ) : (
                     <div data-testid="exam-question-stem" className="prose prose-sm max-w-none mb-8 text-lg leading-relaxed"
