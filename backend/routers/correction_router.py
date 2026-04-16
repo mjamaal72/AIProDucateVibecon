@@ -27,6 +27,17 @@ async def allocate_examiner(eval_id: int, req: AllocationCreate, current_user: d
     """Add an examiner to an evaluation with optional section filter."""
     if current_user.get('role') not in ('ADMIN',):
         raise HTTPException(status_code=403, detail="Only admins can allocate examiners")
+    
+    # Check if examiner is already allocated to this evaluation
+    existing = await db.execute(
+        select(ExaminerAllocation).where(
+            ExaminerAllocation.eval_id == eval_id,
+            ExaminerAllocation.examiner_id == req.examiner_id
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="This examiner is already allocated to this evaluation")
+    
     allocation = ExaminerAllocation(
         eval_id=eval_id,
         examiner_id=req.examiner_id,
