@@ -50,14 +50,17 @@ export default function ManualCorrection() {
     if (!selectedEval) return;
     setLoading(true);
     try {
-      const [allocRes, pendingRes, examRes] = await Promise.all([
+      const [allocRes, pendingRes, examinerRes, adminRes] = await Promise.all([
         api.get(`/correction/${selectedEval}/allocations`),
         api.get(`/correction/${selectedEval}/pending`),
-        api.get('/auth/users?role=EXAMINER')
+        api.get('/auth/users?role=EXAMINER'),
+        api.get('/auth/users?role=ADMIN')
       ]);
       setAllocations(allocRes.data);
       setPendingResponses(pendingRes.data);
-      setExaminers(examRes.data);
+      // Combine examiners and admins
+      const allExaminers = [...examinerRes.data, ...adminRes.data];
+      setExaminers(allExaminers);
     } catch (e) {
       console.error(e);
     } finally { setLoading(false); }
