@@ -15,6 +15,92 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from 'sonner';
 import { ChevronLeft, ChevronRight, Bookmark, BookmarkCheck, Clock, Send, Check, Circle, AlertTriangle } from 'lucide-react';
 
+// Fill-In-The-Blank Component with Drag & Drop
+function FillBlankQuestion({ content, options, currentAnswer, onChange }) {
+  const [draggedOption, setDraggedOption] = useState(null);
+  const answer = typeof currentAnswer === 'object' ? currentAnswer : {};
+  
+  // Parse content and replace _blank_ with drop zones
+  const renderContent = () => {
+    const parts = content.split('_blank_');
+    const elements = [];
+    
+    parts.forEach((part, idx) => {
+      elements.push(<span key={`text-${idx}`} dangerouslySetInnerHTML={{ __html: part }} />);
+      
+      if (idx < parts.length - 1) {
+        const blankId = idx;
+        const filledValue = answer[blankId];
+        
+        elements.push(
+          <span
+            key={`blank-${idx}`}
+            className={`inline-block min-w-[120px] px-3 py-2 mx-1 border-2 rounded ${
+              filledValue ? 'bg-blue-50 border-blue-400' : 'bg-gray-50 border-dashed border-gray-400'
+            }`}
+            style={{ minHeight: '40px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (draggedOption) {
+                onChange({ ...answer, [blankId]: draggedOption });
+                setDraggedOption(null);
+              }
+            }}
+            onDragOver={(e) => e.preventDefault()}
+            onClick={() => {
+              // Allow clearing by clicking
+              if (filledValue) {
+                const newAnswer = { ...answer };
+                delete newAnswer[blankId];
+                onChange(newAnswer);
+              }
+            }}
+          >
+            {filledValue ? (
+              <span className="font-medium text-blue-700">{filledValue}</span>
+            ) : (
+              <span className="text-gray-400 text-sm">Drop here</span>
+            )}
+          </span>
+        );
+      }
+    });
+    
+    return <div className="prose prose-sm max-w-none mb-6 text-lg leading-relaxed">{elements}</div>;
+  };
+  
+  // Get available options (not text-based, only correct options or all options)
+  const availableOptions = options.filter(opt => opt.content_left && opt.content_left.trim());
+  
+  return (
+    <div className="space-y-6">
+      {renderContent()}
+      
+      {/* Draggable Options */}
+      <div className="border-t pt-4">
+        <p className="text-sm font-medium mb-3 text-muted-foreground">Drag options to the blanks above:</p>
+        <div className="flex flex-wrap gap-3">
+          {availableOptions.map((opt, idx) => (
+            <div
+              key={opt.option_id}
+              draggable
+              onDragStart={() => setDraggedOption(opt.content_left)}
+              onDragEnd={() => setDraggedOption(null)}
+              className="px-4 py-2 bg-white border-2 border-gray-300 rounded-lg cursor-move hover:border-blue-400 hover:shadow-md transition-all"
+              style={{ userSelect: 'none' }}
+            >
+              <span className="font-medium">{opt.content_left}</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground mt-3">
+          💡 Tip: Drag an option to a blank space, or click a filled blank to clear it
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function LiveExam() {
   const { attemptId } = useParams();
   const navigate = useNavigate();
@@ -259,8 +345,17 @@ export default function LiveExam() {
                   </div>
 
                   {/* Question Content */}
-                  <div data-testid="exam-question-stem" className="prose prose-sm max-w-none mb-8 text-lg leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: currentQ.content_html }} />
+                  {currentQ.question_type === 'FILL_BLANK' ? (
+                    <FillBlankQuestion 
+                      content={currentQ.content_html}
+                      options={currentQ.options}
+                      currentAnswer={answers[currentQ.question_id]}
+                      onChange={v => handleAnswerChange(currentQ.question_id, v)}
+                    />
+                  ) : (
+                    <div data-testid="exam-question-stem" className="prose prose-sm max-w-none mb-8 text-lg leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: currentQ.content_html }} />
+                  )}
 
                   {/* Answer Input */}
                   <div data-testid="exam-answer-input" className="space-y-3">
@@ -416,17 +511,8 @@ function renderAnswerInput(question, currentAnswer, onChange) {
   }
 
   if (qtype === 'FILL_BLANK') {
-    const ans = typeof currentAnswer === 'object' ? currentAnswer : {};
-    const blanks = options.filter(o => o.is_correct);
-    return blanks.map((blank, idx) => (
-      <div key={idx} className="flex items-center gap-3">
-        <Label className="text-sm w-20">Blank {idx + 1}:</Label>
-        <Select value={ans[String(idx)] || ''} onValueChange={v => onChange({...ans, [String(idx)]: v})}>
-          <SelectTrigger className="flex-1"><SelectValue placeholder="Select answer" /></SelectTrigger>
-          <SelectContent>{options.map(o => <SelectItem key={o.option_id} value={o.content_left}>{o.content_left}</SelectItem>)}</SelectContent>
-        </Select>
-      </div>
-    ));
+    // FIB is handled separately in the question content area with drag & drop
+    return null;
   }
 
   if (qtype === 'MATCHING') {
