@@ -120,9 +120,19 @@ export default function QuestionBank() {
       document.head.appendChild(style);
     }
     
-    const fontCss = customFonts.map(f =>
-      `@font-face { font-family: '${f.font_name}'; src: url('${f.font_file_url}') format('${f.font_format || 'truetype'}'); font-display: swap; }`
-    ).join('\n');
+    const fontCss = customFonts.map(f => {
+      // Use multiple src formats for better browser compatibility
+      const fontUrl = f.font_file_url;
+      return `
+        @font-face {
+          font-family: '${f.font_name}';
+          src: url('${fontUrl}') format('truetype');
+          font-weight: normal;
+          font-style: normal;
+          font-display: swap;
+        }
+      `;
+    }).join('\n');
     
     const tiptapCustomCss = `
       .ProseMirror { min-height: 200px; outline: none; padding: 8px; }
@@ -131,6 +141,24 @@ export default function QuestionBank() {
       .ProseMirror h1 { font-size: 2em; font-weight: bold; }
       .ProseMirror h2 { font-size: 1.5em; font-weight: bold; }
       .ProseMirror h3 { font-size: 1.17em; font-weight: bold; }
+      
+      /* Apply custom fonts when font-family is set */
+      ${customFonts.map(f => `
+        .ProseMirror [style*="font-family: ${f.font_name}"],
+        .ProseMirror [style*="font-family: '${f.font_name}'"],
+        .ProseMirror [style*='font-family: "${f.font_name}"'] {
+          font-family: '${f.font_name}' !important;
+        }
+      `).join('\n')}
+      
+      /* Apply fonts in question preview cards */
+      ${customFonts.map(f => `
+        [style*="font-family: ${f.font_name}"],
+        [style*="font-family: '${f.font_name}'"],
+        [style*='font-family: "${f.font_name}"'] {
+          font-family: '${f.font_name}' !important;
+        }
+      `).join('\n')}
     `;
     
     style.textContent = fontCss + '\n' + tiptapCustomCss;
@@ -440,12 +468,16 @@ export default function QuestionBank() {
               {editor && (
                 <div className="border rounded-md p-2 flex flex-wrap gap-1 items-center" style={{ background: '#f5f5f5' }}>
                   <Select value={selectedFont} onValueChange={applyFont}>
-                    <SelectTrigger className="w-[180px] h-8 text-xs">
+                    <SelectTrigger className="w-[180px] h-8 text-xs" style={{ fontFamily: selectedFont }}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {fontFamilies.map(font => (
-                        <SelectItem key={font.value} value={font.value} style={{ fontFamily: font.value }}>
+                        <SelectItem 
+                          key={font.value} 
+                          value={font.value} 
+                          style={{ fontFamily: `'${font.value}'`, fontSize: '14px', padding: '8px' }}
+                        >
                           {font.label}
                         </SelectItem>
                       ))}
