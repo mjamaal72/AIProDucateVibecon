@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
 from sqlalchemy import select, func, update, and_
+from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
 from models import (
@@ -329,16 +330,24 @@ async def transfer_workload(eval_id: int, req: TransferRequest, current_user: di
 @router.get("/{eval_id}/pending")
 async def get_pending_responses(eval_id: int, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     subjective_types = ('SUBJECTIVE_TYPING', 'FILE_UPLOAD', 'AUDIO_RECORDING')
+    
+    # Create aliases for User table to join twice (student and examiner)
+    StudentUser = aliased(User)
+    ExaminerUser = aliased(User)
+    
     result = await db.execute(
         select(
             AttemptResponse.response_id, AttemptResponse.attempt_id, AttemptResponse.question_id,
             AttemptResponse.assigned_examiner_id, AttemptResponse.manual_marks, AttemptResponse.corrected_at,
+            AttemptResponse.candidate_response_payload, AttemptResponse.examiner_remarks,
             Question.question_type, Question.content_html, Question.marks,
-            User.full_name, User.unique_identifier
+            StudentUser.full_name, StudentUser.unique_identifier,
+            ExaminerUser.full_name
         )
         .join(EvaluationAttempt, AttemptResponse.attempt_id == EvaluationAttempt.attempt_id)
         .join(Question, AttemptResponse.question_id == Question.question_id)
-        .join(User, EvaluationAttempt.candidate_id == User.user_id)
+        .join(StudentUser, EvaluationAttempt.candidate_id == StudentUser.user_id)
+        .outerjoin(ExaminerUser, AttemptResponse.assigned_examiner_id == ExaminerUser.user_id)
         .where(
             EvaluationAttempt.eval_id == eval_id,
             EvaluationAttempt.status == 'SUBMITTED',
@@ -352,9 +361,12 @@ async def get_pending_responses(eval_id: int, current_user: dict = Depends(get_c
         "assigned_examiner_id": str(r[3]) if r[3] else None,
         "manual_marks": float(r[4]) if r[4] is not None else None,
         "corrected_at": r[5].isoformat() if r[5] else None,
-        "question_type": r[6], "question_content_html": r[7],
-        "question_marks": float(r[8]) if r[8] else 0,
-        "student_name": r[9], "student_uid": r[10]
+        "candidate_response_payload": r[6],
+        "examiner_remarks": r[7],
+        "question_type": r[8], "question_content_html": r[9],
+        "question_marks": float(r[10]) if r[10] else 0,
+        "student_name": r[11], "student_uid": r[12],
+        "assigned_examiner_name": r[13]
     } for r in rows]
 
 
