@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { PenTool, Users, ArrowRightLeft, CheckCircle, Clock, FileText, Plus, Send, RefreshCw, AlertTriangle } from 'lucide-react';
+import { PenTool, Users, ArrowRightLeft, CheckCircle, Clock, FileText, Plus, Send, RefreshCw, AlertTriangle, FileQuestion } from 'lucide-react';
 
 export default function ManualCorrection() {
   const { api, user } = useAuth();
@@ -147,10 +147,11 @@ export default function ManualCorrection() {
       {!selectedEval ? (
         <Card><CardContent className="p-12 text-center text-muted-foreground"><PenTool size={48} className="mx-auto mb-4 opacity-30" /><p>Select an evaluation to manage corrections</p></CardContent></Card>
       ) : (
-        <Tabs defaultValue={isAdmin ? 'overview' : 'grade'}>
+        <Tabs defaultValue={isAdmin ? 'overview' : 'my-assignments'}>
           <TabsList>
             {isAdmin && <TabsTrigger value="overview"><Users size={16} className="mr-2" />Overview & Allocations</TabsTrigger>}
-            <TabsTrigger value="grade" data-testid="examiner-correction-tab"><PenTool size={16} className="mr-2" />Grade Responses</TabsTrigger>
+            {isAdmin && <TabsTrigger value="pending"><FileQuestion size={16} className="mr-2" />Pending Responses ({uncorrectedCount})</TabsTrigger>}
+            <TabsTrigger value="my-assignments" data-testid="examiner-correction-tab"><PenTool size={16} className="mr-2" />My Assignments {myResponses.length > 0 && `(${myResponses.length})`}</TabsTrigger>
           </TabsList>
 
           {/* Admin Overview Tab */}
@@ -226,8 +227,50 @@ export default function ManualCorrection() {
             </TabsContent>
           )}
 
-          {/* Grade Responses Tab */}
-          <TabsContent value="grade" className="mt-4">
+          {/* Pending Responses Tab (Admin only - all uncorrected) */}
+          {isAdmin && (
+            <TabsContent value="pending" className="mt-4">
+              {loading ? (
+                <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-24" />)}</div>
+              ) : pendingResponses.filter(r => !r.corrected_at).length === 0 ? (
+                <Card><CardContent className="p-12 text-center text-muted-foreground"><CheckCircle size={48} className="mx-auto mb-4 opacity-30 text-emerald-500" /><p>All responses have been graded!</p></CardContent></Card>
+              ) : (
+                <div className="space-y-3">
+                  {pendingResponses.filter(r => !r.corrected_at).map(r => (
+                    <Card key={r.response_id} className="border-amber-200 bg-amber-50/30">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant="outline" className="text-xs">{r.question_type}</Badge>
+                              <Badge className="text-xs bg-blue-50 text-blue-700">{r.question_marks} marks</Badge>
+                              <span className="text-xs text-muted-foreground">Student: {r.student_name} ({r.student_uid})</span>
+                              {r.assigned_examiner_name && <Badge className="text-xs bg-purple-50 text-purple-700">Assigned to: {r.assigned_examiner_name}</Badge>}
+                            </div>
+                            <div className="text-sm" dangerouslySetInnerHTML={{ __html: r.question_content_html?.substring(0, 150) + '...' }} />
+                            {r.candidate_response_payload && (
+                              <div className="mt-2 p-2 bg-white border rounded text-sm">
+                                <span className="text-xs text-muted-foreground block mb-1">Student Answer:</span>
+                                {r.candidate_response_payload.substring(0, 300)}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <Button size="sm" onClick={() => openGradeModal(r)} style={{ background: 'hsl(210, 52%, 25%)' }}>
+                              <PenTool size={14} className="mr-1" />Grade Now
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          )}
+
+          {/* My Assignments Tab (Examiner view or Admin's assigned responses) */}
+          <TabsContent value="my-assignments" className="mt-4">
             {loading ? (
               <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-24" />)}</div>
             ) : myResponses.length === 0 ? (
