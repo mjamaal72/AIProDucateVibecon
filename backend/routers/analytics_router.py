@@ -53,11 +53,18 @@ async def get_item_analysis(eval_id: int, current_user: dict = Depends(get_curre
         answered = [r for r in responses if r.candidate_response_payload and r.candidate_response_payload.strip() and r.candidate_response_payload.strip() != 'null']
         skipped = total_responses - len(answered)
         
-        # Correct count (for auto-graded)
+        # Correct count
         correct_count = 0
         if q.question_type in ('SINGLE_SELECT', 'MULTIPLE_SELECT', 'FILL_BLANK', 'MATCHING', 'SEQUENCING', 'TOGGLE_BINARY'):
+            # Auto-graded questions - full marks = correct
             for r in answered:
                 if r.auto_graded_marks is not None and float(r.auto_graded_marks) >= float(q.marks):
+                    correct_count += 1
+        elif q.question_type in ('SUBJECTIVE_TYPING', 'FILE_UPLOAD', 'AUDIO_RECORDING'):
+            # Manually graded questions - consider correct if >= 50% of marks
+            passing_threshold = float(q.marks) * 0.5
+            for r in answered:
+                if r.manual_marks is not None and float(r.manual_marks) >= passing_threshold:
                     correct_count += 1
         
         # Avg time
