@@ -299,14 +299,6 @@ async def submit_attempt(attempt_id: str, current_user: dict = Depends(get_curre
     await db.refresh(attempt)
     return serialize_attempt(attempt)
 
-@router.get("/{attempt_id}")
-async def get_attempt(attempt_id: str, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(EvaluationAttempt).where(EvaluationAttempt.attempt_id == attempt_id))
-    attempt = result.scalar_one_or_none()
-    if not attempt:
-        raise HTTPException(status_code=404, detail="Attempt not found")
-    return serialize_attempt(attempt)
-
 @router.get("/my/{eval_id}")
 async def get_my_attempts(eval_id: int, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     result = await db.execute(
@@ -317,6 +309,14 @@ async def get_my_attempts(eval_id: int, current_user: dict = Depends(get_current
     )
     attempts = result.scalars().all()
     return [serialize_attempt(a) for a in attempts]
+
+@router.get("/{attempt_id}")
+async def get_attempt(attempt_id: str, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(EvaluationAttempt).where(EvaluationAttempt.attempt_id == attempt_id))
+    attempt = result.scalar_one_or_none()
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    return serialize_attempt(attempt)
 
 @router.get("/{attempt_id}/responses")
 async def get_attempt_responses(attempt_id: str, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
