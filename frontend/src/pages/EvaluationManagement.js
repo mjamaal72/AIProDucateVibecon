@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Plus, Edit, FileQuestion, Trophy, Clock, Users, Calendar, Search, ToggleLeft, UserPlus, X, Archive, RotateCcw, Trash2 } from 'lucide-react';
+import { Plus, Edit, FileQuestion, Trophy, Clock, Users, Calendar, Search, ToggleLeft, UserPlus, X, Archive, RotateCcw, Trash2, MoreVertical } from 'lucide-react';
 
 export default function EvaluationManagement() {
   const { api } = useAuth();
@@ -361,26 +362,46 @@ export default function EvaluationManagement() {
                   {ev.show_instant_results && <Badge variant="secondary" className="text-xs">Results</Badge>}
                 </div>
                 <div className="flex gap-2 pt-2">
-                  <Button size="sm" variant="outline" className="flex-1" data-testid="evaluation-card-open-button" onClick={() => openEdit(ev)}>
+                  <Button size="sm" variant="outline" className="flex-1" data-testid="evaluation-card-edit-button" onClick={() => openEdit(ev)}>
                     <Edit size={14} className="mr-1" />Edit
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => openAttendeeModal(ev)} title="Manage Attendees">
-                    <UserPlus size={14} />
+                  <Button size="sm" variant="outline" className="flex-1" onClick={() => window.location.href = `/questions?eval=${ev.eval_id}`}>
+                    <FileQuestion size={14} className="mr-1" />Questions
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => window.location.href = `/questions?eval=${ev.eval_id}`}>
-                    <FileQuestion size={14} />
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => window.location.href = `/leaderboard?eval=${ev.eval_id}`}>
-                    <Trophy size={14} />
-                  </Button>
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <Button size="sm" variant="outline" className="flex-1" onClick={() => handleDeleteAllAttempts(ev.eval_id, ev.eval_title)} title="Delete All Attempts">
-                    <Trash2 size={14} className="mr-1" />Clear Attempts
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => handleArchiveEvaluation(ev.eval_id, ev.eval_title)} title="Archive Evaluation">
-                    <Archive size={14} className="mr-1" />Archive
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm" variant="outline" data-testid="evaluation-card-more-button">
+                        <MoreVertical size={14} />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem onClick={() => openAttendeeModal(ev)} data-testid="evaluation-card-attendees-menu">
+                        <UserPlus size={14} className="mr-2" />
+                        Manage Attendees
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => window.location.href = `/leaderboard?eval=${ev.eval_id}`} data-testid="evaluation-card-leaderboard-menu">
+                        <Trophy size={14} className="mr-2" />
+                        Leaderboard
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        onClick={() => handleDeleteAllAttempts(ev.eval_id, ev.eval_title)}
+                        className="text-orange-600 focus:text-orange-600"
+                        data-testid="evaluation-card-delete-attempts-menu"
+                      >
+                        <Trash2 size={14} className="mr-2" />
+                        Delete All Attempts
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => handleArchiveEvaluation(ev.eval_id, ev.eval_title)}
+                        className="text-amber-600 focus:text-amber-600"
+                        data-testid="evaluation-card-archive-menu"
+                      >
+                        <Archive size={14} className="mr-2" />
+                        Archive Evaluation
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </CardContent>
             </Card>

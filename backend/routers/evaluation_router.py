@@ -86,9 +86,9 @@ async def list_evaluations(archived: bool = False, current_user: dict = Depends(
     else:
         # Admin/Examiner see all or their own
         if role == 'ADMIN':
-            query = select(Evaluation).order_by(Evaluation.created_at.desc())
+            query = select(Evaluation).where(Evaluation.is_archived == archived).order_by(Evaluation.created_at.desc())
         else:
-            query = select(Evaluation).where(Evaluation.created_by == user_id).order_by(Evaluation.created_at.desc())
+            query = select(Evaluation).where(Evaluation.created_by == user_id, Evaluation.is_archived == archived).order_by(Evaluation.created_at.desc())
         result = await db.execute(query)
         evals = result.scalars().all()
         return [serialize_eval(e) for e in evals]

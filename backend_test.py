@@ -68,7 +68,7 @@ class AIProDucateAPITester:
             "POST",
             "auth/login",
             200,
-            data={"unique_identifier": "admin001", "password": "admin123"}
+            data={"identifier": "admin001", "password": "admin123"}
         )
         if success and 'token' in response:
             self.admin_token = response['token']
@@ -83,7 +83,7 @@ class AIProDucateAPITester:
             "POST",
             "auth/login",
             200,
-            data={"unique_identifier": "student001", "password": "student123"}
+            data={"identifier": "student001", "password": "student123"}
         )
         if success and 'token' in response:
             self.student_token = response['token']
@@ -423,6 +423,96 @@ class AIProDucateAPITester:
             token=self.student_token
         )
 
+    def test_archive_evaluation(self):
+        """Test archiving evaluation (admin only)"""
+        if not self.created_eval_id:
+            print("❌ Skipping - No evaluation ID available")
+            return False
+        
+        return self.run_test(
+            "Archive Evaluation",
+            "PUT",
+            f"evaluations/{self.created_eval_id}/archive",
+            200,
+            token=self.admin_token
+        )
+
+    def test_list_archived_evaluations(self):
+        """Test listing archived evaluations"""
+        return self.run_test(
+            "List Archived Evaluations",
+            "GET",
+            "evaluations?archived=true",
+            200,
+            token=self.admin_token
+        )
+
+    def test_list_active_evaluations_after_archive(self):
+        """Test that archived evaluation is not in active list"""
+        return self.run_test(
+            "List Active Evaluations (After Archive)",
+            "GET",
+            "evaluations?archived=false",
+            200,
+            token=self.admin_token
+        )
+
+    def test_unarchive_evaluation(self):
+        """Test unarchiving evaluation (admin only)"""
+        if not self.created_eval_id:
+            print("❌ Skipping - No evaluation ID available")
+            return False
+        
+        return self.run_test(
+            "Unarchive Evaluation",
+            "PUT",
+            f"evaluations/{self.created_eval_id}/unarchive",
+            200,
+            token=self.admin_token
+        )
+
+    def test_delete_all_attempts(self):
+        """Test deleting all attempts for evaluation (admin only)"""
+        if not self.created_eval_id:
+            print("❌ Skipping - No evaluation ID available")
+            return False
+        
+        return self.run_test(
+            "Delete All Attempts",
+            "DELETE",
+            f"evaluations/{self.created_eval_id}/attempts",
+            200,
+            token=self.admin_token
+        )
+
+    def test_student_cannot_archive(self):
+        """Test that student cannot archive evaluation"""
+        if not self.created_eval_id:
+            print("❌ Skipping - No evaluation ID available")
+            return False
+        
+        return self.run_test(
+            "Student Cannot Archive",
+            "PUT",
+            f"evaluations/{self.created_eval_id}/archive",
+            403,  # Expecting forbidden
+            token=self.student_token
+        )
+
+    def test_student_cannot_delete_attempts(self):
+        """Test that student cannot delete attempts"""
+        if not self.created_eval_id:
+            print("❌ Skipping - No evaluation ID available")
+            return False
+        
+        return self.run_test(
+            "Student Cannot Delete Attempts",
+            "DELETE",
+            f"evaluations/{self.created_eval_id}/attempts",
+            403,  # Expecting forbidden
+            token=self.student_token
+        )
+
 def main():
     print("🚀 Starting AIProDucate API Testing...")
     tester = AIProDucateAPITester()
@@ -449,7 +539,15 @@ def main():
         tester.test_submit_exam,
         tester.test_view_leaderboard,
         tester.test_student_cannot_create_evaluation,
-        tester.test_student_cannot_create_question
+        tester.test_student_cannot_create_question,
+        # Archive and Delete Attempts tests
+        tester.test_archive_evaluation,
+        tester.test_list_archived_evaluations,
+        tester.test_list_active_evaluations_after_archive,
+        tester.test_unarchive_evaluation,
+        tester.test_delete_all_attempts,
+        tester.test_student_cannot_archive,
+        tester.test_student_cannot_delete_attempts
     ]
     
     # Run all tests

@@ -1,30 +1,18 @@
 [
   {
-    "content": "Auth: Remove role selection, default STUDENT, login via ID or Email, admin user promotion",
+    "content": "Fixed backend Archive filter bug - backend API tested and working",
+    "status": "completed"
+  },
+  {
+    "content": "Verified Archive and Delete UI code - handlers and routes correct",
+    "status": "completed"
+  },
+  {
+    "content": "Refactored Evaluation Card buttons into DropdownMenu - cleaner UI with Edit and Questions primary, others in menu",
+    "status": "completed"
+  },
+  {
+    "content": "Test complete Archive/Delete flow with testing_agent",
     "status": "in_progress"
-  },
-  {
-    "content": "Evaluation: Enhanced attendee management (bulk entry, user/group dropdown, pre-registration, Excel import)",
-    "status": "pending"
-  },
-  {
-    "content": "Question Bank: TinyMCE rich text editor with RTL/LTR toggle",
-    "status": "pending"
-  },
-  {
-    "content": "Custom Font System: Admin upload, register, @font-face injection, TinyMCE integration",
-    "status": "pending"
-  },
-  {
-    "content": "Fill in Blanks: _blank_ to input field conversion, Insert Blank button in editor",
-    "status": "pending"
-  },
-  {
-    "content": "Penalty & Formatting: Option cleaning toggles, bracket removal",
-    "status": "pending"
-  },
-  {
-    "content": "Testing all modifications",
-    "status": "pending"
   }
 ]
