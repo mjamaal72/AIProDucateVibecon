@@ -414,7 +414,6 @@ export default function QuestionBank() {
                     });
                   }
                 }}
-                tinymceScriptSrc="/tinymce/tinymce.min.js"
               />
             </div>
 
