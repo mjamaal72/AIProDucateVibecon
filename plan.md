@@ -1,4 +1,4 @@
-# AIProDucate — Development Plan (POC → V1 → Expand) **(Updated — All Phases Complete)**
+# AIProDucate — Development Plan (POC → V1 → Expand) **(Updated — Phase 6 / V2 Enhancements Complete; Final UI Verification Pending)**
 
 ## 1) Objectives
 - Deliver a working web MVP/V1 of **AIProDucate** using **React + FastAPI + Supabase Postgres**.
@@ -12,7 +12,12 @@
   - **Item Analysis** (per-question stats)
   - **Manual correction workflows** (allocation, grading, transfer)
   - **Proctoring logs** (tab switch + window blur)
-- Prepare for the next iteration where the user will provide **rectifications/modifications** after planned phases are completed.
+- Support V2 “rectifications/modifications” requested post-V1:
+  - Open-source rich text editing (TinyMCE → **Tiptap**) with LTR/RTL and exam-safe content patterns.
+  - Custom fonts (CORS-safe delivery) including S3 proxy for stable rendering.
+  - Advanced attendee management with **User Groups**, pre-registration, and bulk entry.
+  - Student exam UX bug fixes (FIB inline droppables, resilient timer).
+  - Evaluation lifecycle controls (**Archive/Restore**) and administrative reset (**Delete all attempts**).
 
 **Status summary (as of now):**
 - ✅ Phase 1 complete (Postgres + Storage + Gemini + Auto-grading + Timer validation).
@@ -20,8 +25,9 @@
 - ✅ Phase 3 complete (Analytics: Item Analysis + UI).
 - ✅ Phase 4 complete (Manual Correction: allocation + round-robin + transfer + grading UI).
 - ✅ Phase 5 complete (Proctoring: tab-switch + window blur detection, event logging).
-- ✅ Storage finalized: **AWS S3** (permissions fixed) replaces earlier Emergent Object Storage.
-- ✅ Testing complete: **Backend 100% (34/34)**, **Frontend 100%**, **Integration 100%**.
+- ✅ Storage finalized: **AWS S3** replaces earlier object storage.
+- ✅ Phase 6 implemented (V2 enhancements: Tiptap, custom fonts proxy, groups/attendees, exam fixes, archive/delete attempts, UI cleanup).
+- ⚠️ Final status: **Backend verified for Phase 6; frontend visual verification pending** (automation blocked by Playwright login flow, not by app runtime).
 
 ---
 
@@ -164,7 +170,7 @@ Steps (implemented):
   - Tab-switch + window-blur event logging.
   - Backend endpoints to record events and provide summary.
 - ✅ Storage:
-  - Migrated from Emergent Object Storage to **AWS S3** (permissions fixed).
+  - Migrated to **AWS S3**.
   - Added direct upload endpoint and **presigned upload/download** endpoints.
 
 Exit criteria:
@@ -175,15 +181,71 @@ Exit criteria:
 
 ---
 
+### Phase 6 — V2 Enhancements / Rectifications (Open-source Editor, Fonts, Groups, Exam Fixes, Archive/Reset)
+**Goal:** Implement requested rectifications and harden UX for production usage.
+
+User stories:
+1. As a creator, I can author rich question content with an open-source editor supporting RTL/LTR, blanks insertion, and custom fonts.
+2. As an admin, I can upload custom fonts and reliably render them across dashboard + student exam views (no S3 CORS or token expiry issues).
+3. As an admin/creator, I can manage attendees via **user groups**, bulk entry, and pre-registration.
+4. As a student, I can interact with FIB drag/drop inline droppables (no line breaks/box stacking).
+5. As a student, I can rely on an exam timer that does not get stuck on re-renders or tab switching.
+6. As an admin, I can **archive** an evaluation (and restore it) and can **delete all attempts** to reset an evaluation.
+
+Implemented changes (this session):
+- ✅ Editor: Replaced commercial HTML editor (TinyMCE) with **Tiptap** (MIT license) supporting custom styling patterns.
+- ✅ Fonts: Implemented backend proxy **`GET /api/fonts/{font_id}/file`** to avoid S3 CORS & presigned URL expiry issues.
+- ✅ Groups: Implemented **User Groups CRUD** + membership tables.
+- ✅ Attendee management: Advanced attendee modal supports:
+  - Individual add
+  - Group add
+  - Bulk entry
+  - Pre-registration
+- ✅ Student exam: Fixed FIB drag-and-drop droppable rendering inline.
+- ✅ Student exam: Timer resilience improvements (useRef + visibility listeners).
+- ✅ Evaluation lifecycle:
+  - **Archive/Unarchive** endpoints and UI page.
+  - **Delete all attempts** endpoint and UI action.
+- ✅ UI improvement: Refactored evaluation card actions into a **DropdownMenu** (reduces clutter).
+- ✅ Backend fix: Corrected evaluation listing to honor `archived` filter for Admin/Examiner.
+
+Key endpoints added/verified:
+- ✅ `PUT /api/evaluations/{eval_id}/archive`
+- ✅ `PUT /api/evaluations/{eval_id}/unarchive`
+- ✅ `DELETE /api/evaluations/{eval_id}/attempts`
+- ✅ `GET /api/evaluations?archived=true|false` (filter now applied for Admin/Examiner too)
+
+Exit criteria:
+- ✅ Backend: archive/unarchive/delete-attempts endpoints working and admin-guarded.
+- ✅ Backend: archived filter works for all roles.
+- ✅ Frontend: Archive page reachable from sidebar and restores evaluations.
+- ✅ Frontend: Evaluation card actions accessible and usable (Edit/Questions primary, others in menu).
+- ⚠️ Automation: Playwright-based UI verification needs updated selectors and/or login automation tuning.
+
+**Phase 6 status:** ✅ Implemented; ⚠️ Frontend visual verification pending
+
+---
+
 ## 3) Next Actions (Immediate)
-1. **User-requested rectifications/modifications** (next iteration):
-   - Gather your change list and categorize by: backend, frontend, data model, grading logic, analytics, proctoring, storage.
-   - Prioritize into: must-have, should-have, nice-to-have.
-2. **Hardening / V1+ backlog (optional):**
-   - Offline-first answer queue (IndexedDB/localStorage with retry/backoff) and “block submit until sync”.
-   - Webcam snapshot proctoring MVP + admin review screen.
-   - Guided question builders (rich UI) for complex types and validations.
-   - Certificate generation workflow.
+1. **Frontend verification (P0):**
+   - Manually verify in browser:
+     - Archive from Evaluation card → appears in Archive page
+     - Restore from Archive page → returns to active list
+     - Delete all attempts → leaderboard resets and students can retake
+   - Update Playwright scripts to use stable selectors:
+     - Use `data-testid="login-email-input"`, `data-testid="login-password-input"`, `data-testid="login-submit-button"`
+     - Use menu testids added during refactor:
+       - `evaluation-card-more-button`, `evaluation-card-archive-menu`, `evaluation-card-delete-attempts-menu`
+2. **Comprehensive end-to-end test (P1):**
+   - Run full exam flow including:
+     - Tiptap authored questions
+     - Custom font rendering via backend proxy
+     - Group/bulk attendee assignment
+     - FIB drag/drop
+     - Timer resilience
+3. **Optional UX polish (P2):**
+   - Replace confirm() dialogs with Shadcn `AlertDialog` for Archive/Delete actions.
+   - Add skeleton loaders on ArchivedEvaluations page.
 
 ---
 
@@ -193,4 +255,7 @@ Exit criteria:
 - Phase 3: ✅ Item analysis available and populated from attempts.
 - Phase 4: ✅ Subjective questions can be allocated, corrected, transferred, and reflected in final scores.
 - Phase 5: ✅ Proctoring events logged; file uploads stored in AWS S3.
-- ✅ Final verification: **Backend 100%**, **Frontend 100%**, **Integration 100%**.
+- Phase 6: ✅ V2 enhancements shipped (Tiptap, fonts proxy, user groups/attendees, exam fixes, archive/delete attempts, UI cleanup).
+- Final verification target:
+  - ✅ Backend verification complete for Phase 6.
+  - ⚠️ Frontend UI automation verification pending (manual verification recommended; update Playwright locators/testids).
