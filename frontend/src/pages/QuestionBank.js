@@ -113,6 +113,8 @@ export default function QuestionBank() {
 
   // Inject @font-face CSS and Tiptap styles
   useEffect(() => {
+    if (customFonts.length === 0) return;
+    
     let style = document.getElementById('custom-fonts-style');
     if (!style) {
       style = document.createElement('style');
@@ -120,49 +122,61 @@ export default function QuestionBank() {
       document.head.appendChild(style);
     }
     
+    // Fetch fresh font URLs and create @font-face rules
+    const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
     const fontCss = customFonts.map(f => {
-      // Use multiple src formats for better browser compatibility
-      const fontUrl = f.font_file_url;
+      const fontUrl = f.font_file_url.startsWith('http') ? f.font_file_url : `${backendUrl}${f.font_file_url}`;
       return `
         @font-face {
           font-family: '${f.font_name}';
           src: url('${fontUrl}') format('truetype');
           font-weight: normal;
           font-style: normal;
-          font-display: swap;
+          font-display: block;
         }
       `;
     }).join('\n');
     
     const tiptapCustomCss = `
-      .ProseMirror { min-height: 200px; outline: none; padding: 8px; }
+      .ProseMirror { 
+        min-height: 200px; 
+        outline: none; 
+        padding: 8px; 
+      }
       .ProseMirror p { margin: 0.5em 0; }
       .ProseMirror ul, .ProseMirror ol { padding-left: 1.5em; }
       .ProseMirror h1 { font-size: 2em; font-weight: bold; }
       .ProseMirror h2 { font-size: 1.5em; font-weight: bold; }
       .ProseMirror h3 { font-size: 1.17em; font-weight: bold; }
       
-      /* Apply custom fonts when font-family is set */
+      /* Force custom fonts with maximum specificity */
       ${customFonts.map(f => `
-        .ProseMirror [style*="font-family: ${f.font_name}"],
-        .ProseMirror [style*="font-family: '${f.font_name}'"],
-        .ProseMirror [style*='font-family: "${f.font_name}"'] {
+        .ProseMirror *[style*="${f.font_name}"] {
           font-family: '${f.font_name}' !important;
         }
-      `).join('\n')}
-      
-      /* Apply fonts in question preview cards */
-      ${customFonts.map(f => `
-        [style*="font-family: ${f.font_name}"],
-        [style*="font-family: '${f.font_name}'"],
-        [style*='font-family: "${f.font_name}"'] {
+        div[style*="${f.font_name}"],
+        p[style*="${f.font_name}"],
+        span[style*="${f.font_name}"] {
           font-family: '${f.font_name}' !important;
         }
       `).join('\n')}
     `;
     
     style.textContent = fontCss + '\n' + tiptapCustomCss;
+    
+    // Log font loading for debugging
+    customFonts.forEach(f => {
+      console.log('Loading font:', f.font_name, 'from', f.font_file_url.substring(0, 100));
+    });
   }, [customFonts]);
+  
+  // Refresh fonts every 60 seconds to get fresh URLs
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchFonts();
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [fetchFonts]);
 
   const handleSectionSubmit = async (e) => {
     e.preventDefault();
@@ -248,9 +262,16 @@ export default function QuestionBank() {
   ], [customFonts]);
 
   const applyFont = (font) => {
+    setSelectedFont(font);
     if (editor) {
+      // Apply font to current selection or entire editor
       editor.chain().focus().setFontFamily(font).run();
-      setSelectedFont(font);
+      
+      // Also set the font on the editor container for fallback
+      const editorElement = document.querySelector('.ProseMirror');
+      if (editorElement) {
+        editorElement.style.fontFamily = `'${font}'`;
+      }
     }
   };
 
@@ -507,7 +528,14 @@ export default function QuestionBank() {
                 </div>
               )}
               {/* Editor */}
-              <div dir={direction} className="border rounded-md p-3 min-h-[250px] bg-white" style={{ direction: direction }}>
+              <div 
+                dir={direction} 
+                className="border rounded-md p-3 min-h-[250px] bg-white" 
+                style={{ 
+                  direction: direction,
+                  fontFamily: selectedFont ? `'${selectedFont}'` : 'Inter'
+                }}
+              >
                 <EditorContent editor={editor} />
               </div>
             </div>

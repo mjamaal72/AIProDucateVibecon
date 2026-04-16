@@ -1,15 +1,43 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
 from models import CustomFont
 from auth import get_current_user
-from storage import put_object, generate_presigned_url
+from storage import put_object, generate_presigned_url, get_object
 import uuid
 import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/fonts", tags=["fonts"])
+
+
+@router.get("/{font_id}/file")
+async def get_font_file(font_id: int, db: AsyncSession = Depends(get_db)):
+    """Proxy endpoint to serve font files with proper CORS headers."""
+    result = await db.execute(select(CustomFont).where(CustomFont.font_id == font_id))
+    font = result.scalar_one_or_none()
+    if not font:
+        raise HTTPException(status_code=404, detail="Font not found")
+    
+    try:
+        # Get font data from S3
+        font_data, content_type = get_object(font.font_file_url)
+        
+        # Return with proper CORS headers
+        return Response(
+            content=font_data,
+            media_type=content_type,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET",
+                "Cache-Control": "public, max-age=31536000"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error serving font {font_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to load font file")
 
 
 @router.get("")
@@ -19,14 +47,12 @@ async def list_fonts(db: AsyncSession = Depends(get_db)):
     fonts = result.scalars().all()
     font_list = []
     for f in fonts:
-        try:
-            url = generate_presigned_url(f.font_file_url, expiration=86400)
-        except Exception:
-            url = f.font_file_url
+        # Use proxy URL instead of direct S3 URL to avoid CORS issues
+        proxy_url = f"/api/fonts/{f.font_id}/file"
         font_list.append({
             "font_id": f.font_id,
             "font_name": f.font_name,
-            "font_file_url": url,
+            "font_file_url": proxy_url,
             "font_format": f.font_format,
             "created_at": f.created_at.isoformat() if f.created_at else None
         })
