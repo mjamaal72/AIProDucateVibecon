@@ -33,8 +33,18 @@ export default function ManualCorrection() {
   const isExaminer = user?.role === 'EXAMINER' || user?.role === 'ADMIN';
 
   const fetchEvals = useCallback(async () => {
-    try { const res = await api.get('/evaluations'); setEvaluations(res.data); } catch (e) { console.error(e); }
-  }, [api]);
+    try {
+      // Examiners see only evaluations they're allocated to
+      if (user?.role === 'EXAMINER') {
+        const res = await api.get('/correction/my-evaluations');
+        setEvaluations(res.data);
+      } else {
+        // Admin sees all evaluations
+        const res = await api.get('/evaluations');
+        setEvaluations(res.data);
+      }
+    } catch (e) { console.error(e); }
+  }, [api, user?.role]);
 
   const fetchAllocations = useCallback(async () => {
     if (!selectedEval) return;

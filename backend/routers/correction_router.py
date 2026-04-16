@@ -329,3 +329,22 @@ async def get_pending_responses(eval_id: int, current_user: dict = Depends(get_c
         "question_marks": float(r[8]) if r[8] else 0,
         "student_name": r[9], "student_uid": r[10]
     } for r in rows]
+
+
+# --- Get evaluations where examiner is allocated ---
+@router.get("/my-evaluations")
+async def get_my_evaluations(current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Get all evaluations where the current user is allocated as an examiner."""
+    user_id = current_user['sub']
+    result = await db.execute(
+        select(Evaluation)
+        .join(ExaminerAllocation, Evaluation.eval_id == ExaminerAllocation.eval_id)
+        .where(ExaminerAllocation.examiner_id == user_id)
+        .distinct()
+    )
+    evals = result.scalars().all()
+    return [{
+        "eval_id": e.eval_id,
+        "eval_title": e.eval_title,
+        "created_at": e.created_at.isoformat() if e.created_at else None
+    } for e in evals]
