@@ -48,7 +48,7 @@ export default function LoginPage() {
           <img
             src="https://customer-assets.emergentagent.com/job_8fd771a9-94bf-48e9-839d-945bcffab523/artifacts/0npssl6s_AIProDucate%20Logo.jpeg"
             alt="AIProDucate Logo"
-            className="w-48 h-48 mx-auto mb-8 rounded-2xl shadow-2xl object-cover"
+            className="w-48 h-48 mx-auto mb-8 rounded-2xl shadow-2xl object-contain bg-white p-2"
           />
           <h1 className="text-4xl font-bold text-white mb-4" style={{ fontFamily: 'Space Grotesk' }}>AI ProDucate</h1>
           <p className="text-lg text-blue-200 mb-6">Professional & Progressive Educational System</p>
@@ -81,7 +81,7 @@ export default function LoginPage() {
           <div className="lg:hidden text-center mb-8">
             <img
               src="https://customer-assets.emergentagent.com/job_8fd771a9-94bf-48e9-839d-945bcffab523/artifacts/0npssl6s_AIProDucate%20Logo.jpeg"
-              alt="Logo" className="w-20 h-20 mx-auto mb-4 rounded-xl"
+              alt="Logo" className="w-20 h-20 mx-auto mb-4 rounded-xl object-contain bg-white p-1"
             />
             <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk', color: 'hsl(210, 52%, 25%)' }}>AI ProDucate</h1>
           </div>
