@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import { Plus, Trash2, FolderOpen, Sparkles, Save, X, GripVertical, ChevronDown, ChevronUp, Edit2, AlignLeft, AlignRight, TextCursorInput, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -68,6 +69,36 @@ export default function QuestionBank() {
   const [customFonts, setCustomFonts] = useState([]);
   const [selectedFont, setSelectedFont] = useState('Inter');
   const [aiFile, setAiFile] = useState(null);
+  const [openSections, setOpenSections] = useState(new Set());
+  
+  // Group questions by section
+  const questionsBySection = useMemo(() => {
+    const grouped = {};
+    sections.forEach(s => {
+      grouped[s.section_id] = {
+        section: s,
+        questions: questions.filter(q => q.section_id === s.section_id),
+        totalMarks: questions.filter(q => q.section_id === s.section_id).reduce((sum, q) => sum + (q.marks || 0), 0)
+      };
+    });
+    // Unsectioned questions
+    grouped['null'] = {
+      section: { section_id: null, section_name: 'Unsectioned Questions' },
+      questions: questions.filter(q => !q.section_id),
+      totalMarks: questions.filter(q => !q.section_id).reduce((sum, q) => sum + (q.marks || 0), 0)
+    };
+    return grouped;
+  }, [sections, questions]);
+  
+  const toggleSection = (sectionId) => {
+    const newOpen = new Set(openSections);
+    if (newOpen.has(sectionId)) {
+      newOpen.delete(sectionId);
+    } else {
+      newOpen.add(sectionId);
+    }
+    setOpenSections(newOpen);
+  };
   
   // Tiptap editor
   const editor = useEditor({
@@ -374,7 +405,7 @@ export default function QuestionBank() {
         </div>
       )}
 
-      {/* Questions List */}
+      {/* Questions List by Section */}
       {loading ? (
         <div className="space-y-3">{[1,2,3].map(i => <Card key={i}><CardContent className="p-4"><Skeleton className="h-4 w-3/4 mb-2" /><Skeleton className="h-4 w-1/2" /></CardContent></Card>)}</div>
       ) : !selectedEval ? (
@@ -382,46 +413,96 @@ export default function QuestionBank() {
       ) : questions.length === 0 ? (
         <Card><CardContent className="p-12 text-center text-muted-foreground"><p>No questions yet. Create one or use AI to generate!</p></CardContent></Card>
       ) : (
-        <div className="space-y-3">
-          {questions.map((q, idx) => (
-            <Card key={q.question_id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0"
-                    style={{ background: 'hsl(204, 55%, 92%)', color: 'hsl(210, 52%, 25%)' }}>
-                    {getTypeIcon(q.question_type)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-sm font-medium">Q{idx + 1}</span>
-                      <Badge variant="outline" className="text-xs">{getTypeLabel(q.question_type)}</Badge>
-                      <Badge className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">{q.marks} marks</Badge>
-                      {q.negative_marks > 0 && <Badge className="text-xs bg-red-50 text-red-600 border-red-200">-{q.negative_marks}</Badge>}
-                      {q.penalty_logic_type && q.penalty_logic_type !== 'NONE' && <Badge variant="secondary" className="text-xs">Toggle {q.penalty_logic_type}</Badge>}
-                    </div>
-                    <div className="text-sm text-foreground" dangerouslySetInnerHTML={{ __html: q.content_html.substring(0, 200) + (q.content_html.length > 200 ? '...' : '') }} />
-                    {expandedQ === q.question_id && q.options.length > 0 && (
-                      <div className="mt-3 space-y-1 pl-2 border-l-2 border-border">
-                        {q.options.map((o, oi) => (
-                          <div key={oi} className={`text-sm py-1 px-2 rounded ${o.is_correct ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-muted-foreground'}`}>
-                            {q.question_type === 'MATCHING' ? `${o.content_left} → ${o.content_right}` : o.content_left}
-                            {o.is_correct && ' ✓'}
+        <div className="space-y-4">
+          {Object.entries(questionsBySection).map(([sectionId, data]) => {
+            if (data.questions.length === 0) return null;
+            const isOpen = openSections.has(sectionId);
+            
+            return (
+              <Collapsible key={sectionId} open={isOpen} onOpenChange={() => toggleSection(sectionId)}>
+                <Card className="border-2">
+                  <CollapsibleTrigger className="w-full">
+                    <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          {isOpen ? <ChevronDown size={20} /> : <ChevronUp size={20} className="rotate-180" />}
+                          <div className="text-left">
+                            <CardTitle className="text-lg">{data.section.section_name}</CardTitle>
+                            <div className="flex gap-2 mt-1">
+                              <Badge variant="outline" className="text-xs">{data.questions.length} Questions</Badge>
+                              <Badge className="text-xs bg-emerald-50 text-emerald-700">{data.totalMarks} Marks</Badge>
+                            </div>
                           </div>
-                        ))}
+                        </div>
+                        {sectionId !== 'null' && (
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setEditSection(data.section); 
+                              setSectionForm({ 
+                                section_name: data.section.section_name, 
+                                target_question_count: data.section.target_question_count, 
+                                target_total_marks: data.section.target_total_marks, 
+                                instructions: data.section.instructions || '' 
+                              }); 
+                              setShowSectionModal(true); 
+                            }}
+                          >
+                            <Edit2 size={14} className="mr-1" />Edit Section
+                          </Button>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => setExpandedQ(expandedQ === q.question_id ? null : q.question_id)}>
-                      {expandedQ === q.question_id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => openEditQuestion(q)}><Edit2 size={16} /></Button>
-                    <Button size="sm" variant="ghost" className="text-destructive" onClick={() => deleteQuestion(q.question_id)}><Trash2 size={16} /></Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <CardContent className="pt-0 space-y-3">
+                      {data.questions.map((q, idx) => (
+                        <Card key={q.question_id} className="hover:shadow-md transition-shadow">
+                          <CardContent className="p-4">
+                            <div className="flex items-start gap-3">
+                              <div className="w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0"
+                                style={{ background: 'hsl(204, 55%, 92%)', color: 'hsl(210, 52%, 25%)' }}>
+                                {getTypeIcon(q.question_type)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                  <span className="text-sm font-medium">Q{idx + 1}</span>
+                                  <Badge variant="outline" className="text-xs">{getTypeLabel(q.question_type)}</Badge>
+                                  <Badge className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">{q.marks} marks</Badge>
+                                  {q.negative_marks > 0 && <Badge className="text-xs bg-red-50 text-red-600 border-red-200">-{q.negative_marks}</Badge>}
+                                  {q.penalty_logic_type && q.penalty_logic_type !== 'NONE' && <Badge variant="secondary" className="text-xs">Toggle {q.penalty_logic_type}</Badge>}
+                                </div>
+                                <div className="text-sm text-foreground" dangerouslySetInnerHTML={{ __html: q.content_html.substring(0, 200) + (q.content_html.length > 200 ? '...' : '') }} />
+                                {expandedQ === q.question_id && q.options.length > 0 && (
+                                  <div className="mt-3 space-y-1 pl-2 border-l-2 border-border">
+                                    {q.options.map((o, oi) => (
+                                      <div key={oi} className={`text-sm py-1 px-2 rounded ${o.is_correct ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-muted-foreground'}`}>
+                                        {q.question_type === 'MATCHING' ? `${o.content_left} → ${o.content_right}` : o.content_left}
+                                        {o.is_correct && ' ✓'}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button size="sm" variant="ghost" onClick={() => setExpandedQ(expandedQ === q.question_id ? null : q.question_id)}>
+                                  {expandedQ === q.question_id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={() => openEditQuestion(q)}><Edit2 size={16} /></Button>
+                                <Button size="sm" variant="ghost" className="text-destructive" onClick={() => deleteQuestion(q.question_id)}><Trash2 size={16} /></Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
+            );
+          })}
         </div>
       )}
 
