@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [loginForm, setLoginForm] = useState({ identifier: '', password: '' });
   const [registerForm, setRegisterForm] = useState({ unique_identifier: '', full_name: '', email: '', password: '' });
   const [loading, setLoading] = useState(false);
+  const [logoLoaded, setLogoLoaded] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -42,14 +43,49 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex" style={{ background: 'hsl(210, 33%, 98%)' }}>
+      <style>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-10px); }
+        }
+        @keyframes glow {
+          0%, 100% { filter: drop-shadow(0 0 15px rgba(99, 102, 241, 0.4)); }
+          50% { filter: drop-shadow(0 0 30px rgba(99, 102, 241, 0.8)); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: scale(0.9); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        .logo-animate {
+          animation: float 3s ease-in-out infinite, glow 2s ease-in-out infinite;
+        }
+        .logo-fade-in {
+          animation: fadeIn 0.8s ease-out forwards;
+        }
+        .logo-hover {
+          transition: transform 0.3s ease, filter 0.3s ease;
+        }
+        .logo-hover:hover {
+          transform: scale(1.05) rotate(2deg);
+          filter: drop-shadow(0 0 40px rgba(99, 102, 241, 1)) brightness(1.1);
+        }
+      `}</style>
       {/* Left Panel - Brand */}
-      <div className="hidden lg:flex lg:w-1/2 items-center justify-center relative" style={{ background: 'linear-gradient(135deg, hsl(210, 52%, 18%) 0%, hsl(210, 52%, 30%) 100%)' }}>
+      <div className="hidden lg:flex lg:w-1/2 items-center justify-center relative overflow-hidden" style={{ background: 'linear-gradient(135deg, hsl(210, 52%, 18%) 0%, hsl(210, 52%, 30%) 100%)' }}>
+        {/* Animated background circles */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute w-96 h-96 bg-blue-500/10 rounded-full -top-20 -left-20 blur-3xl animate-pulse"></div>
+          <div className="absolute w-96 h-96 bg-indigo-500/10 rounded-full -bottom-20 -right-20 blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+        </div>
         <div className="text-center p-12 relative z-10">
-          <img
-            src="https://customer-assets.emergentagent.com/job_8fd771a9-94bf-48e9-839d-945bcffab523/artifacts/0npssl6s_AIProDucate%20Logo.jpeg"
-            alt="AIProDucate Logo"
-            className="w-48 h-48 mx-auto mb-8 rounded-2xl shadow-2xl object-contain bg-white p-2"
-          />
+          <div className={`${logoLoaded ? 'logo-fade-in' : 'opacity-0'}`}>
+            <img
+              src="https://customer-assets.emergentagent.com/job_aiproducate-eval/artifacts/1qdb5kew_Picsart_26-04-17_11-21-11-483.png"
+              alt="AIProDucate Logo"
+              className="w-64 h-64 mx-auto mb-8 object-contain logo-animate logo-hover"
+              onLoad={() => setLogoLoaded(true)}
+            />
+          </div>
           <h1 className="text-4xl font-bold text-white mb-4" style={{ fontFamily: 'Space Grotesk' }}>AI ProDucate</h1>
           <p className="text-lg text-blue-200 mb-6">Professional & Progressive Educational System</p>
           <div className="space-y-3 text-left max-w-sm mx-auto">
