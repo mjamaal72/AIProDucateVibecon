@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,6 +14,29 @@ import { Progress } from '@/components/ui/progress';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { ChevronLeft, ChevronRight, Bookmark, BookmarkCheck, Clock, Send, Check, Circle, AlertTriangle } from 'lucide-react';
+
+// Seeded shuffle function for consistent randomization per attempt
+function shuffleWithSeed(array, seed) {
+  const arr = [...array];
+  let currentIndex = arr.length;
+  let temporaryValue, randomIndex;
+  
+  // Simple seeded random number generator
+  const random = () => {
+    const x = Math.sin(seed++) * 10000;
+    return x - Math.floor(x);
+  };
+  
+  while (currentIndex !== 0) {
+    randomIndex = Math.floor(random() * currentIndex);
+    currentIndex -= 1;
+    temporaryValue = arr[currentIndex];
+    arr[currentIndex] = arr[randomIndex];
+    arr[randomIndex] = temporaryValue;
+  }
+  
+  return arr;
+}
 
 // Fill-In-The-Blank Component with Drag & Drop
 function FillBlankQuestion({ content, options, currentAnswer, onChange }) {
@@ -174,7 +197,23 @@ export default function LiveExam() {
       setEvalData(evalRes.data);
       // Get questions via start (returns existing if in progress)
       const startRes = await api.post(`/attempts/start?eval_id=${attRes.data.eval_id}`);
-      setQuestions(startRes.data.questions || []);
+      
+      // CRITICAL: Shuffle options for each question using attempt_id as seed
+      const attemptSeed = parseInt(attemptId.replace(/-/g, '').substring(0, 8), 16);
+      const questionsWithShuffledOptions = (startRes.data.questions || []).map((q, qIndex) => {
+        // Only shuffle for question types with options
+        if (['SINGLE_SELECT', 'MULTIPLE_SELECT', 'FILL_BLANK', 'MATCHING'].includes(q.question_type)) {
+          // Use attempt seed + question index for unique shuffle per question
+          const questionSeed = attemptSeed + qIndex;
+          return {
+            ...q,
+            options: shuffleWithSeed(q.options || [], questionSeed)
+          };
+        }
+        return q;
+      });
+      
+      setQuestions(questionsWithShuffledOptions);
       // Restore answers from responses
       const respRes = await api.get(`/attempts/${attemptId}/responses`);
       const ansMap = {};
