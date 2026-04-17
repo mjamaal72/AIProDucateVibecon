@@ -72,6 +72,7 @@ export default function QuestionBank() {
   const [aiResults, setAiResults] = useState([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSelected, setAiSelected] = useState(new Set());
+  const [aiSelectedSection, setAiSelectedSection] = useState(null);
   const [expandedQ, setExpandedQ] = useState(null);
   const [customFonts, setCustomFonts] = useState([]);
   const [selectedFont, setSelectedFont] = useState('Inter');
@@ -357,10 +358,11 @@ export default function QuestionBank() {
   const saveAIQuestions = async () => {
     const selected = aiResults.filter((_, i) => aiSelected.has(i));
     if (selected.length === 0) { toast.error('No questions selected'); return; }
+    if (!aiSelectedSection) { toast.error('Please select a section'); return; }
     try {
       const payload = selected.map(q => ({
         eval_id: parseInt(selectedEval),
-        section_id: sections.length > 0 ? sections[0].section_id : null,
+        section_id: aiSelectedSection,
         question_type: q.question_type || 'SINGLE_SELECT',
         content_html: q.content_html || q.content || '',
         marks: q.marks || 1, negative_marks: q.negative_marks || 0,
@@ -371,7 +373,7 @@ export default function QuestionBank() {
         }))
       }));
       await api.post('/questions/bulk', payload);
-      toast.success(`Saved ${selected.length} questions!`);
+      toast.success(`Saved ${selected.length} questions to ${sections.find(s => s.section_id === aiSelectedSection)?.section_name}!`);
       setShowAIModal(false); setAiResults([]); fetchQuestions();
     } catch (err) { toast.error('Failed to save questions'); }
   };
@@ -685,10 +687,28 @@ export default function QuestionBank() {
       </Dialog>
 
       {/* AI Generation Modal */}
-      <Dialog open={showAIModal} onOpenChange={setShowAIModal}>
+      <Dialog open={showAIModal} onOpenChange={(open) => { setShowAIModal(open); if (!open) { setAiSelectedSection(null); setAiResults([]); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle><Sparkles size={20} className="inline mr-2 text-purple-600" />AI Question Generator</DialogTitle></DialogHeader>
           <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Select Section <span className="text-red-500">*</span></Label>
+              <Select value={aiSelectedSection ? String(aiSelectedSection) : ''} onValueChange={v => setAiSelectedSection(parseInt(v))}>
+                <SelectTrigger data-testid="ai-section-select">
+                  <SelectValue placeholder="Choose a section for generated questions" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sections.map(s => (
+                    <SelectItem key={s.section_id} value={String(s.section_id)}>
+                      {s.section_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {sections.length === 0 && (
+                <p className="text-xs text-amber-600">No sections available. Create a section first.</p>
+              )}
+            </div>
             <Tabs defaultValue="text" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="text">Text Input</TabsTrigger>
@@ -720,7 +740,7 @@ export default function QuestionBank() {
                 </Select>
               </div>
             </div>
-            <Button onClick={handleAIGenerate} disabled={aiLoading} className="w-full" style={{ background: 'hsl(270, 60%, 50%)' }}>
+            <Button onClick={handleAIGenerate} disabled={aiLoading || !aiSelectedSection} className="w-full" style={{ background: 'hsl(270, 60%, 50%)' }} data-testid="ai-generate-button">
               {aiLoading ? 'Generating...' : <><Sparkles size={16} className="mr-2" />Generate Questions</>}
             </Button>
           </div>

@@ -1,18 +1,22 @@
 [
   {
-    "content": "Fixed backend Archive filter bug - backend API tested and working",
+    "content": "Add state variable to track selected section for AI Generator",
     "status": "completed"
   },
   {
-    "content": "Verified Archive and Delete UI code - handlers and routes correct",
+    "content": "Add Section Select dropdown in AI Generator modal UI (line ~708)",
     "status": "completed"
   },
   {
-    "content": "Refactored Evaluation Card buttons into DropdownMenu - cleaner UI",
+    "content": "Update saveAIQuestions function to use selected section_id from state",
     "status": "completed"
   },
   {
-    "content": "Ran testing_agent - Backend 96.2% pass, all Archive/Delete features verified",
+    "content": "Make section selection required (disable Generate if no section selected)",
+    "status": "completed"
+  },
+  {
+    "content": "Test the implementation with screenshot tool",
     "status": "completed"
   }
 ]
