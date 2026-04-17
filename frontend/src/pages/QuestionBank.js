@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useSearchParams } from 'react-router-dom';
+import { evaluationStore } from '@/lib/evaluationStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,7 +46,13 @@ export default function QuestionBank() {
   const { api } = useAuth();
   const [searchParams] = useSearchParams();
   const [evaluations, setEvaluations] = useState([]);
-  const [selectedEval, setSelectedEval] = useState(searchParams.get('eval') || '');
+  
+  // Initialize from shared store or URL param
+  const [selectedEval, setSelectedEval] = useState(() => {
+    const urlParam = searchParams.get('eval');
+    const stored = evaluationStore.getSelectedEvaluation();
+    return urlParam || (stored ? stored.toString() : '');
+  });
   const [sections, setSections] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -208,6 +215,13 @@ export default function QuestionBank() {
     }, 60000);
     return () => clearInterval(interval);
   }, [fetchFonts]);
+  
+  // Save selected evaluation to shared store
+  useEffect(() => {
+    if (selectedEval) {
+      evaluationStore.setSelectedEvaluation(parseInt(selectedEval, 10));
+    }
+  }, [selectedEval]);
 
   const handleSectionSubmit = async (e) => {
     e.preventDefault();

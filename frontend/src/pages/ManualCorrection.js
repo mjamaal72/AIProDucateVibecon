@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
+import { evaluationStore } from '@/lib/evaluationStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +17,12 @@ import { PenTool, Users, ArrowRightLeft, CheckCircle, Clock, FileText, Plus, Sen
 export default function ManualCorrection() {
   const { api, user } = useAuth();
   const [evaluations, setEvaluations] = useState([]);
-  const [selectedEval, setSelectedEval] = useState('');
+  
+  // Initialize from shared store
+  const [selectedEval, setSelectedEval] = useState(() => {
+    const stored = evaluationStore.getSelectedEvaluation();
+    return stored ? stored.toString() : '';
+  });
   const [allocations, setAllocations] = useState([]);
   const [pendingResponses, setPendingResponses] = useState([]);
   const [myResponses, setMyResponses] = useState([]);
@@ -76,6 +82,13 @@ export default function ManualCorrection() {
 
   useEffect(() => { fetchEvals(); }, [fetchEvals]);
   useEffect(() => { if (selectedEval) { fetchAllocations(); fetchMyResponses(); } }, [selectedEval, fetchAllocations, fetchMyResponses]);
+  
+  // Save selected evaluation to shared store
+  useEffect(() => {
+    if (selectedEval) {
+      evaluationStore.setSelectedEvaluation(parseInt(selectedEval, 10));
+    }
+  }, [selectedEval]);
 
   const handleAllocate = async () => {
     try {

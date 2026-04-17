@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useSearchParams } from 'react-router-dom';
+import { evaluationStore } from '@/lib/evaluationStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,7 +16,13 @@ export default function LeaderBoard() {
   const { api } = useAuth();
   const [searchParams] = useSearchParams();
   const [evaluations, setEvaluations] = useState([]);
-  const [selectedEval, setSelectedEval] = useState(searchParams.get('eval') || '');
+  
+  // Initialize from shared store or URL param
+  const [selectedEval, setSelectedEval] = useState(() => {
+    const urlParam = searchParams.get('eval');
+    const stored = evaluationStore.getSelectedEvaluation();
+    return urlParam || (stored ? stored.toString() : '');
+  });
   const [leaderboard, setLeaderboard] = useState([]);
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -39,6 +46,13 @@ export default function LeaderBoard() {
 
   useEffect(() => { fetchEvals(); }, [fetchEvals]);
   useEffect(() => { if (selectedEval) { fetchLeaderboard(); fetchAnalysis(); } }, [selectedEval, fetchLeaderboard, fetchAnalysis]);
+  
+  // Save selected evaluation to shared store
+  useEffect(() => {
+    if (selectedEval) {
+      evaluationStore.setSelectedEvaluation(parseInt(selectedEval, 10));
+    }
+  }, [selectedEval]);
 
   const formatDuration = (seconds) => {
     if (!seconds) return '-';
