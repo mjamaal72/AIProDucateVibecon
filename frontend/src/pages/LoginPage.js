@@ -79,12 +79,14 @@ export default function LoginPage() {
         </div>
         <div className="text-center p-12 relative z-10">
           <div className={`${logoLoaded ? 'logo-fade-in' : 'opacity-0'}`}>
-            <img
-              src="https://customer-assets.emergentagent.com/job_aiproducate-eval/artifacts/1qdb5kew_Picsart_26-04-17_11-21-11-483.png"
-              alt="AIProDucate Logo"
-              className="w-64 h-64 mx-auto mb-8 object-contain logo-animate logo-hover"
-              onLoad={() => setLogoLoaded(true)}
-            />
+            <div className="w-72 h-72 mx-auto mb-8 bg-white rounded-full flex items-center justify-center shadow-2xl logo-animate logo-hover" style={{ padding: '1.5rem' }}>
+              <img
+                src="https://customer-assets.emergentagent.com/job_aiproducate-eval/artifacts/1qdb5kew_Picsart_26-04-17_11-21-11-483.png"
+                alt="AIProDucate Logo"
+                className="w-full h-full object-contain"
+                onLoad={() => setLogoLoaded(true)}
+              />
+            </div>
           </div>
           <h1 className="text-4xl font-bold text-white mb-4" style={{ fontFamily: 'Space Grotesk' }}>AI ProDucate</h1>
           <p className="text-lg text-blue-200 mb-6">Professional & Progressive Educational System</p>
@@ -115,10 +117,16 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-md">
           <div className="lg:hidden text-center mb-8">
-            <img
-              src="https://customer-assets.emergentagent.com/job_8fd771a9-94bf-48e9-839d-945bcffab523/artifacts/0npssl6s_AIProDucate%20Logo.jpeg"
-              alt="Logo" className="w-20 h-20 mx-auto mb-4 rounded-xl object-contain bg-white p-1"
-            />
+            <div className={`${logoLoaded ? 'logo-fade-in' : 'opacity-0'}`}>
+              <div className="w-36 h-36 mx-auto mb-4 bg-white rounded-full flex items-center justify-center shadow-lg logo-hover" style={{ padding: '0.75rem' }}>
+                <img
+                  src="https://customer-assets.emergentagent.com/job_aiproducate-eval/artifacts/1qdb5kew_Picsart_26-04-17_11-21-11-483.png"
+                  alt="Logo" 
+                  className="w-full h-full object-contain"
+                  onLoad={() => setLogoLoaded(true)}
+                />
+              </div>
+            </div>
             <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk', color: 'hsl(210, 52%, 25%)' }}>AI ProDucate</h1>
           </div>
 
