@@ -10,12 +10,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
-import { Plus, Trash2, FolderOpen, Sparkles, Save, X, GripVertical, ChevronDown, ChevronUp, Edit2, AlignLeft, AlignRight, TextCursorInput, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered } from 'lucide-react';
+import { Plus, Trash2, FolderOpen, Sparkles, Save, X, GripVertical, ChevronDown, ChevronUp, Edit2, AlignLeft, AlignRight, TextCursorInput, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, AlertTriangle } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
@@ -78,6 +79,9 @@ export default function QuestionBank() {
   const [selectedFont, setSelectedFont] = useState('Inter');
   const [aiFile, setAiFile] = useState(null);
   const [openSections, setOpenSections] = useState(new Set());
+  
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, type: null, questionId: null, questionText: '' });
   
   // Group questions by section
   const questionsBySection = useMemo(() => {
@@ -239,9 +243,35 @@ export default function QuestionBank() {
     } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
   };
 
-  const deleteSection = async (sid) => {
-    if (!window.confirm('Delete this section?')) return;
-    try { await api.delete(`/evaluations/${selectedEval}/sections/${sid}`); toast.success('Section deleted'); fetchSections(); } catch (e) { toast.error('Failed'); }
+  const deleteSection = async (sid, sectionName) => {
+    setConfirmDialog({ open: true, type: 'section', questionId: sid, questionText: sectionName });
+  };
+
+  const deleteQuestion = async (qid, questionContent) => {
+    setConfirmDialog({ open: true, type: 'question', questionId: qid, questionText: questionContent });
+  };
+  
+  const confirmAction = async () => {
+    const { type, questionId, questionText } = confirmDialog;
+    setConfirmDialog({ open: false, type: null, questionId: null, questionText: '' });
+    
+    if (type === 'section') {
+      try {
+        await api.delete(`/evaluations/${selectedEval}/sections/${questionId}`);
+        toast.success('Section deleted');
+        fetchSections();
+      } catch (e) {
+        toast.error('Failed to delete section');
+      }
+    } else if (type === 'question') {
+      try {
+        await api.delete(`/questions/${questionId}`);
+        toast.success('Question deleted');
+        fetchQuestions();
+      } catch (e) {
+        toast.error('Failed to delete question');
+      }
+    }
   };
 
   const initNewQuestion = () => {
@@ -334,11 +364,6 @@ export default function QuestionBank() {
       }
       setShowQuestionModal(false); fetchQuestions();
     } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
-  };
-
-  const deleteQuestion = async (qid) => {
-    if (!window.confirm('Delete this question?')) return;
-    try { await api.delete(`/questions/${qid}`); toast.success('Question deleted'); fetchQuestions(); } catch (e) { toast.error('Failed'); }
   };
 
   const handleAIGenerate = async () => {
@@ -507,7 +532,7 @@ export default function QuestionBank() {
                                   {expandedQ === q.question_id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                 </Button>
                                 <Button size="sm" variant="ghost" onClick={() => openEditQuestion(q)}><Edit2 size={16} /></Button>
-                                <Button size="sm" variant="ghost" className="text-destructive" onClick={() => deleteQuestion(q.question_id)}><Trash2 size={16} /></Button>
+                                <Button size="sm" variant="ghost" className="text-destructive" onClick={() => deleteQuestion(q.question_id, q.content_html || 'Question')}><Trash2 size={16} /></Button>
                               </div>
                             </div>
                           </CardContent>
@@ -534,7 +559,7 @@ export default function QuestionBank() {
             </div>
             <div className="space-y-2"><Label>Instructions</Label><Textarea value={sectionForm.instructions} onChange={e => setSectionForm({...sectionForm, instructions: e.target.value})} /></div>
             <div className="flex justify-between">
-              {editSection && <Button type="button" variant="destructive" size="sm" onClick={() => { deleteSection(editSection.section_id); setShowSectionModal(false); }}>Delete</Button>}
+              {editSection && <Button type="button" variant="destructive" size="sm" onClick={() => { deleteSection(editSection.section_id, editSection.section_name); setShowSectionModal(false); }}>Delete</Button>}
               <div className="flex gap-2 ml-auto"><Button type="button" variant="outline" onClick={() => setShowSectionModal(false)}>Cancel</Button><Button type="submit" style={{ background: 'hsl(210, 52%, 25%)' }}>Save</Button></div>
             </div>
           </form>
@@ -772,6 +797,50 @@ export default function QuestionBank() {
           )}
         </DialogContent>
       </Dialog>
+      
+      {/* Confirmation AlertDialog */}
+      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => !open && setConfirmDialog({ open: false, type: null, questionId: null, questionText: '' })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="text-amber-600" size={24} />
+              {confirmDialog.type === 'section' ? 'Delete Section?' : 'Delete Question?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2 pt-2">
+              {confirmDialog.type === 'section' ? (
+                <>
+                  <p className="font-medium text-foreground">"{confirmDialog.questionText}"</p>
+                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                    <p className="text-sm font-semibold text-amber-900 mb-2">This will:</p>
+                    <ul className="text-sm text-amber-800 space-y-1 list-disc list-inside">
+                      <li>Remove the section and all its questions</li>
+                      <li>Affect any evaluations using this section</li>
+                    </ul>
+                  </div>
+                  <p className="text-destructive font-medium mt-3">⚠️ This action cannot be undone!</p>
+                </>
+              ) : (
+                <>
+                  <div className="font-medium text-foreground max-h-20 overflow-y-auto" dangerouslySetInnerHTML={{ __html: confirmDialog.questionText || 'This question' }} />
+                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                    <p className="text-sm text-amber-800">This question will be permanently deleted from the evaluation.</p>
+                  </div>
+                  <p className="text-destructive font-medium mt-3">⚠️ This action cannot be undone!</p>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmAction}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Delete {confirmDialog.type === 'section' ? 'Section' : 'Question'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,22 +1,26 @@
 [
   {
-    "content": "Add state variable to track selected section for AI Generator",
+    "content": "Import AlertDialog components in QuestionBank.js",
     "status": "completed"
   },
   {
-    "content": "Add Section Select dropdown in AI Generator modal UI (line ~708)",
+    "content": "Add confirmDialog state for delete confirmation",
     "status": "completed"
   },
   {
-    "content": "Update saveAIQuestions function to use selected section_id from state",
+    "content": "Update deleteQuestion function to use AlertDialog instead of window.confirm",
     "status": "completed"
   },
   {
-    "content": "Make section selection required (disable Generate if no section selected)",
+    "content": "Add confirmAction handler for executing deletion",
     "status": "completed"
   },
   {
-    "content": "Test the implementation with screenshot tool",
+    "content": "Add AlertDialog component to JSX (similar to EvaluationManagement)",
+    "status": "completed"
+  },
+  {
+    "content": "Test the delete confirmation flow",
     "status": "completed"
   }
 ]
