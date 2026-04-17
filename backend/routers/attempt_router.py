@@ -170,16 +170,30 @@ async def start_attempt(eval_id: int, current_user: dict = Depends(get_current_u
     return {"attempt": serialize_attempt(attempt), "questions": questions_data}
 
 async def get_attempt_questions(attempt_id: str, db: AsyncSession):
-    """Get questions for an existing attempt."""
+    """Get questions for an existing attempt - OPTIMIZED to prevent N+1 queries."""
+    # Fetch all responses
     result = await db.execute(
         select(AttemptResponse).where(AttemptResponse.attempt_id == attempt_id).order_by(AttemptResponse.display_sequence)
     )
     responses = result.scalars().all()
     
+    if not responses:
+        return []
+    
+    # Batch fetch all questions with their options in ONE query using IN clause
+    question_ids = [r.question_id for r in responses]
+    q_result = await db.execute(
+        select(Question).options(selectinload(Question.options)).where(Question.question_id.in_(question_ids))
+    )
+    questions = q_result.scalars().all()
+    
+    # Create lookup dict for O(1) access
+    questions_dict = {q.question_id: q for q in questions}
+    
+    # Build response with response data + question data
     questions_data = []
     for r in responses:
-        q_result = await db.execute(select(Question).options(selectinload(Question.options)).where(Question.question_id == r.question_id))
-        q = q_result.scalar_one_or_none()
+        q = questions_dict.get(r.question_id)
         if q:
             q_data = {
                 "question_id": q.question_id,
@@ -396,3 +410,49 @@ async def get_leaderboard(eval_id: int, current_user: dict = Depends(get_current
             "unique_identifier": row[6]
         })
     return leaderboard
+
+
+@router.get("/bulk/my-attempts")
+async def get_my_attempts_bulk(eval_ids: str, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """
+    OPTIMIZED: Get attempts for multiple evaluations in ONE query.
+    Prevents N+1 queries from frontend.
+    
+    Args:
+        eval_ids: Comma-separated evaluation IDs (e.g., "1,2,3")
+    Returns:
+        Dict mapping eval_id to list of attempts
+    """
+    if not eval_ids:
+        return {}
+    
+    # Parse eval_ids
+    try:
+        eval_id_list = [int(eid.strip()) for eid in eval_ids.split(',') if eid.strip()]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid eval_ids format")
+    
+    if not eval_id_list:
+        return {}
+    
+    # Fetch ALL attempts for ALL evaluations in ONE query
+    result = await db.execute(
+        select(EvaluationAttempt)
+        .where(
+            EvaluationAttempt.candidate_id == current_user['sub'],
+            EvaluationAttempt.eval_id.in_(eval_id_list)
+        )
+        .order_by(EvaluationAttempt.started_at.desc())
+    )
+    attempts = result.scalars().all()
+    
+    # Group by eval_id
+    attempts_by_eval = {}
+    for eval_id in eval_id_list:
+        attempts_by_eval[eval_id] = []
+    
+    for att in attempts:
+        if att.eval_id in attempts_by_eval:
+            attempts_by_eval[att.eval_id].append(serialize_attempt(att))
+    
+    return attempts_by_eval

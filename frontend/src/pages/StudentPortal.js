@@ -21,15 +21,20 @@ export default function StudentPortal() {
       setLoading(true);
       const res = await api.get('/evaluations');
       setEvaluations(res.data);
-      // Fetch attempts for each evaluation
-      const attemptsMap = {};
-      for (const ev of res.data) {
+      
+      // OPTIMIZED: Fetch attempts for ALL evaluations in ONE API call
+      if (res.data.length > 0) {
+        const evalIds = res.data.map(ev => ev.eval_id).join(',');
         try {
-          const attRes = await api.get(`/attempts/my/${ev.eval_id}`);
-          attemptsMap[ev.eval_id] = attRes.data;
-        } catch (e) { attemptsMap[ev.eval_id] = []; }
+          const attRes = await api.get(`/attempts/bulk/my-attempts?eval_ids=${evalIds}`);
+          setAttempts(attRes.data);
+        } catch (e) {
+          console.error('Failed to load attempts:', e);
+          setAttempts({});
+        }
+      } else {
+        setAttempts({});
       }
-      setAttempts(attemptsMap);
     } catch (err) {
       toast.error('Failed to load evaluations');
     } finally {

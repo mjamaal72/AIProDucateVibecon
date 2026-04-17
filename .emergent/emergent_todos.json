@@ -1,26 +1,18 @@
 [
   {
-    "content": "Import AlertDialog components in QuestionBank.js",
+    "content": "Fix N+1 in attempt_router.py - Load all questions with responses in one query",
     "status": "completed"
   },
   {
-    "content": "Add confirmDialog state for delete confirmation",
+    "content": "Fix N+1 in analytics_router.py - Batch load all responses for all questions",
     "status": "completed"
   },
   {
-    "content": "Update deleteQuestion function to use AlertDialog instead of window.confirm",
+    "content": "Fix N+1 in StudentPortal.js - Create bulk endpoint for fetching attempts",
     "status": "completed"
   },
   {
-    "content": "Add confirmAction handler for executing deletion",
-    "status": "completed"
-  },
-  {
-    "content": "Add AlertDialog component to JSX (similar to EvaluationManagement)",
-    "status": "completed"
-  },
-  {
-    "content": "Test the delete confirmation flow",
+    "content": "Test performance improvements",
     "status": "completed"
   }
 ]

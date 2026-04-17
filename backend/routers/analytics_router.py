@@ -25,6 +25,9 @@ async def get_item_analysis(eval_id: int, current_user: dict = Depends(get_curre
     )
     questions = q_result.scalars().all()
     
+    if not questions:
+        return {"total_attempts": 0, "questions": []}
+    
     # Get total submitted attempts
     att_result = await db.execute(
         select(func.count()).select_from(EvaluationAttempt)
@@ -35,19 +38,30 @@ async def get_item_analysis(eval_id: int, current_user: dict = Depends(get_curre
     if total_attempts == 0:
         return {"total_attempts": 0, "questions": []}
     
+    # OPTIMIZED: Fetch ALL responses for ALL questions in ONE query
+    question_ids = [q.question_id for q in questions]
+    resp_result = await db.execute(
+        select(AttemptResponse)
+        .join(EvaluationAttempt, AttemptResponse.attempt_id == EvaluationAttempt.attempt_id)
+        .where(
+            EvaluationAttempt.eval_id == eval_id,
+            EvaluationAttempt.status == 'SUBMITTED',
+            AttemptResponse.question_id.in_(question_ids)
+        )
+    )
+    all_responses = resp_result.scalars().all()
+    
+    # Group responses by question_id for O(1) lookup
+    responses_by_question = {}
+    for r in all_responses:
+        if r.question_id not in responses_by_question:
+            responses_by_question[r.question_id] = []
+        responses_by_question[r.question_id].append(r)
+    
     analysis = []
     for q in questions:
-        # Get responses for this question
-        resp_result = await db.execute(
-            select(AttemptResponse)
-            .join(EvaluationAttempt, AttemptResponse.attempt_id == EvaluationAttempt.attempt_id)
-            .where(
-                EvaluationAttempt.eval_id == eval_id,
-                EvaluationAttempt.status == 'SUBMITTED',
-                AttemptResponse.question_id == q.question_id
-            )
-        )
-        responses = resp_result.scalars().all()
+        # Get responses for this specific question from pre-loaded data
+        responses = responses_by_question.get(q.question_id, [])
         
         total_responses = len(responses)
         answered = [r for r in responses if r.candidate_response_payload and r.candidate_response_payload.strip() and r.candidate_response_payload.strip() != 'null']
