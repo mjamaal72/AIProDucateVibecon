@@ -44,3 +44,14 @@
     font-family: 'Space Grotesk', sans-serif;
   }
 }
+
+
+/* Hide Emergent watermark badge - highest priority */
+#emergent-badge {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
